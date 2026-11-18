@@ -28,7 +28,6 @@
   <symbol id="i-right" viewBox="0 0 24 24"><path d="M9.2 5.2 16 12l-6.8 6.8"/></symbol>
   <symbol id="i-pin" viewBox="0 0 24 24"><path d="M12 21s6.6-6.1 6.6-10.4A6.6 6.6 0 0 0 5.4 10.6C5.4 14.9 12 21 12 21z"/><circle cx="12" cy="10.4" r="2.4"/></symbol>
   <symbol id="i-dot" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4.6"/></symbol>
-  <symbol id="i-walk" viewBox="0 0 24 24"><circle cx="13" cy="4.2" r="1.8"/><path d="M11.6 8.2 9 13.4l3 2.2.8 5M11.6 8.2l3.4 2 2 3.4M10 10.4 6.8 12"/></symbol>
 </svg>
 
 <div class="app" id="app">
@@ -72,7 +71,7 @@
         </div>
         <div class="line-list" id="lineList"></div>
       </section>
-      <p class="foot-note">站点与线路为本地数据，车辆位置来自诸暨公交官方实时接口<br>无地图渲染 · 定位仅用于「出行」的“我的位置”</p>
+      <p class="foot-note">站点与线路为本地静态数据，车辆位置来自诸暨公交官方实时接口<br>无地图渲染 · 定位仅用于「出行」的“我的位置”</p>
     </div>
   </main>
 
@@ -81,14 +80,14 @@
     <header class="go-hdr">
       <div class="go-title">
         <h1>出行</h1>
-        <p>输入起点、终点，直接给出可坐的车</p>
+        <p>选好起点和终点，直接看到还要坐几站</p>
       </div>
       <div class="route-card">
         <div class="route-row" data-act="pick-from">
           <span class="dot from"></span>
           <div class="route-txt">
             <span class="route-lab">起点</span>
-            <b id="fromName">输入起点站</b>
+            <b id="fromName">选择起点站</b>
           </div>
           <button class="route-my" data-act="pick-my" id="myLocBtn">我的位置</button>
         </div>
@@ -97,9 +96,9 @@
           <span class="dot to"></span>
           <div class="route-txt">
             <span class="route-lab">终点</span>
-            <b id="toName">输入终点站</b>
+            <b id="toName">选择终点站</b>
           </div>
-          <button class="route-swap" data-act="swap-stops" title="交换起终点" aria-label="交换起终点">
+          <button class="route-swap" data-act="swap-stops" title="交换起终点">
             <svg class="ico"><use href="#i-swap"/></svg>
           </button>
         </div>
@@ -118,9 +117,102 @@
         <div id="histList"></div>
       </section>
 
-      <p class="foot-note">换乘与耗时均为本地数据估算，仅供参考，实际以运营为准</p>
+      <p class="foot-note">换乘与耗时均为本地静态数据估算，仅供参考，实际以运营为准</p>
     </div>
   </main>
+
+  <!-- ================= 线路实时页 ================= -->
+  <section class="fullpage" id="page-line">
+    <header class="line-hdr">
+      <button class="line-back" data-act="line-back" aria-label="返回">
+        <svg class="ico"><use href="#i-back"/></svg>
+      </button>
+      <div class="line-hdr-t">
+        <b id="lnName">—</b>
+        <span id="lnDir">—</span>
+      </div>
+      <button class="line-hbtn" id="lnFav" data-act="line-fav" aria-label="收藏线路">
+        <svg class="ico"><use href="#i-star"/></svg>
+      </button>
+      <button class="line-hbtn" data-act="line-swap" aria-label="切换方向">
+        <svg class="ico"><use href="#i-swap"/></svg>
+      </button>
+    </header>
+
+    <div class="line-body">
+      <div id="lineBanner"></div>
+      <section class="card line-info" id="lineInfo"></section>
+      <section class="stat-card" id="lineStat"></section>
+
+      <section class="card tl-card">
+        <div class="card-h">
+          <b>车辆位置</b>
+          <span class="tl-legend" id="tlLegend"></span>
+        </div>
+        <div class="tl-scroll" id="tlScroll">
+          <div class="tl" id="tl"></div>
+        </div>
+        <div class="tl-hint"><span id="tlHint">← 左右滑动浏览整条线路 →</span></div>
+      </section>
+
+      <section class="mystop-bar" id="myStopBar"></section>
+
+      <section class="stop-sec">
+        <div class="sec-h">
+          <b>竖向时间轴（大字）</b>
+          <span class="sec-hint" id="stopHint"></span>
+        </div>
+        <div class="vt" id="stopList"></div>
+      </section>
+
+      <p class="foot-note" id="lineNote">计划班次与到站时间为静态数据估算，仅供参考，受路况影响</p>
+    </div>
+  </section>
+
+  <!-- ================= 换乘方案详情页（分段实时公交） ================= -->
+  <section class="fullpage" id="page-plan">
+    <header class="line-hdr plan-hdr">
+      <button class="line-back" data-act="plan-back" aria-label="返回">
+        <svg class="ico"><use href="#i-back"/></svg>
+      </button>
+      <div class="line-hdr-t">
+        <b id="plTitle">出行方案</b>
+        <span id="plSub">—</span>
+      </div>
+      <button class="line-hbtn" data-act="plan-refresh" aria-label="刷新实时数据">
+        <svg class="ico"><use href="#i-refresh"/></svg>
+      </button>
+    </header>
+    <div class="line-body">
+      <div id="plSummary"></div>
+      <div id="plLegs"></div>
+      <p class="foot-note" id="plNote">分段实时数据来自诸暨公交官方接口，暂无在线车辆时按静态里程估算</p>
+    </div>
+  </section>
+
+  <!-- ================= 站点实时页 ================= -->
+  <section class="fullpage" id="page-station">
+    <header class="line-hdr st-hdr">
+      <button class="line-back" data-act="station-back" aria-label="返回">
+        <svg class="ico"><use href="#i-back"/></svg>
+      </button>
+      <div class="line-hdr-t">
+        <b id="stName">—</b>
+        <span id="stSub">—</span>
+      </div>
+      <button class="line-hbtn" id="stFav" data-act="station-fav" aria-label="收藏站点">
+        <svg class="ico"><use href="#i-star"/></svg>
+      </button>
+      <button class="line-hbtn" data-act="station-refresh" aria-label="刷新">
+        <svg class="ico"><use href="#i-refresh"/></svg>
+      </button>
+    </header>
+    <div class="line-body">
+      <div class="st-summary" id="stSummary"></div>
+      <div class="st-lines" id="stLines"></div>
+      <p class="foot-note">到站时间为实时接口估算，仅供参考，受路况影响</p>
+    </div>
+  </section>
 
   <!-- ================= 设置 ================= -->
   <main class="page" id="page-settings">
@@ -179,7 +271,7 @@
           <button class="mini" data-act="clear-cache">清除</button>
         </div>
         <div class="set-row">
-          <div class="set-t"><b>关于</b><span id="verTxt">诸暨公交 v1.2.0</span></div>
+          <div class="set-t"><b>关于</b><span id="verTxt">诸暨公交 v1.3.0</span></div>
           <button class="mini" data-act="about">查看</button>
         </div>
       </section>
@@ -187,99 +279,6 @@
       <p class="foot-note">设置只保存在本机，不会上传</p>
     </div>
   </main>
-
-  <!-- ================= 线路实时页 ================= -->
-  <section class="fullpage" id="page-line">
-    <header class="line-hdr">
-      <button class="line-back" data-act="line-back" aria-label="返回">
-        <svg class="ico"><use href="#i-back"/></svg>
-      </button>
-      <div class="line-hdr-t">
-        <b id="lnName">—</b>
-        <span id="lnDir">—</span>
-      </div>
-      <button class="line-hbtn" id="lnFav" data-act="line-fav" aria-label="收藏线路">
-        <svg class="ico"><use href="#i-star"/></svg>
-      </button>
-      <button class="line-hbtn" data-act="line-swap" aria-label="切换方向">
-        <svg class="ico"><use href="#i-swap"/></svg>
-      </button>
-    </header>
-
-    <div class="line-body">
-      <div id="lineBanner"></div>
-      <section class="card line-info" id="lineInfo"></section>
-      <section class="stat-card" id="lineStat"></section>
-
-      <section class="card tl-card">
-        <div class="card-h">
-          <b>车辆位置</b>
-          <span class="tl-legend" id="tlLegend"></span>
-        </div>
-        <div class="tl-scroll" id="tlScroll">
-          <div class="tl" id="tl"></div>
-        </div>
-        <div class="tl-hint"><span id="tlHint">← 左右滑动浏览整条线路 →</span></div>
-      </section>
-
-      <section class="mystop-bar" id="myStopBar"></section>
-
-      <section class="stop-sec">
-        <div class="sec-h">
-          <b>竖向时间轴（大字）</b>
-          <span class="sec-hint" id="stopHint"></span>
-        </div>
-        <div class="vt" id="stopList"></div>
-      </section>
-
-      <p class="foot-note" id="lineNote">计划班次与到站时间为静态数据估算，仅供参考，受路况影响</p>
-    </div>
-  </section>
-
-  <!-- ================= 出行方案详情页（换乘流程 + 分段实时） ================= -->
-  <section class="fullpage" id="page-plan">
-    <header class="line-hdr plan-hdr">
-      <button class="line-back" data-act="plan-back" aria-label="返回">
-        <svg class="ico"><use href="#i-back"/></svg>
-      </button>
-      <div class="line-hdr-t">
-        <b id="plTitle">出行方案</b>
-        <span id="plSub">—</span>
-      </div>
-      <button class="line-hbtn" data-act="plan-refresh" aria-label="刷新实时数据">
-        <svg class="ico"><use href="#i-refresh"/></svg>
-      </button>
-    </header>
-    <div class="line-body">
-      <div id="plSummary"></div>
-      <div id="plFlow"></div>
-      <p class="foot-note" id="plNote">分段实时数据来自诸暨公交官方接口，暂无在线车辆时按静态里程估算</p>
-    </div>
-  </section>
-
-  <!-- ================= 站点实时页 ================= -->
-  <section class="fullpage" id="page-station">
-    <header class="line-hdr st-hdr">
-      <button class="line-back" data-act="station-back" aria-label="返回">
-        <svg class="ico"><use href="#i-back"/></svg>
-      </button>
-      <div class="line-hdr-t">
-        <b id="stName">—</b>
-        <span id="stSub">—</span>
-      </div>
-      <button class="line-hbtn" id="stFav" data-act="station-fav" aria-label="收藏站点">
-        <svg class="ico"><use href="#i-star"/></svg>
-      </button>
-      <button class="line-hbtn" data-act="station-refresh" aria-label="刷新">
-        <svg class="ico"><use href="#i-refresh"/></svg>
-      </button>
-    </header>
-    <div class="line-body">
-      <div class="st-summary" id="stSummary"></div>
-      <div class="st-lines" id="stLines"></div>
-      <p class="foot-note">到站时间为实时接口估算，仅供参考，受路况影响</p>
-    </div>
-  </section>
 
   <!-- ================= 底部导航 ================= -->
   <nav class="tabbar" id="tabbar">
