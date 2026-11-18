@@ -37,14 +37,34 @@ const stat = await page.evaluate(() => ({
 }));
 ok('运行环境存在 ZJ', stat.hasZJ);
 ok('静态数据加载', stat.lines > 300 && stat.stations > 2000, `${stat.lines} 线/${stat.dirs} 向/${stat.stations} 站`);
-ok('Tab 仅两个', stat.tabs.length === 2, stat.tabs.join(' | '));
+ok('Tab 为 首页/出行/设置', stat.tabs.join('/') === '首页/出行/设置', stat.tabs.join(' | '));
 ok('无地图 SDK 引用', !stat.mapRefs);
 
-// 切换到「去哪」
+// 切换到「出行」：只保留站名搜索
 await page.evaluate(() => window.ZJ.setTab('go'));
-await new Promise((r) => setTimeout(r, 400));
-const goVisible = await page.evaluate(() => document.querySelector('#page-go')?.classList.contains('on'));
-ok('切到「去哪」', !!goVisible);
+await new Promise((r) => setTimeout(r, 500));
+const goState = await page.evaluate(() => ({
+  on: document.querySelector('#page-go')?.classList.contains('on'),
+  from: document.querySelector('#fromName')?.textContent?.trim(),
+  queryBtn: !!document.querySelector('.plan-btn[data-act="plan"]'),
+  lineTree: document.querySelectorAll('.pick-line').length
+}));
+ok('切到「出行」', !!goState.on && goState.queryBtn, JSON.stringify(goState));
+ok('起终点为直接输入', /输入起点/.test(goState.from || ''), goState.from);
+
+// 设置页
+await page.evaluate(() => window.ZJ.setTab('settings'));
+await new Promise((r) => setTimeout(r, 600));
+const setState = await page.evaluate(() => ({
+  on: document.querySelector('#page-settings')?.classList.contains('on'),
+  themes: document.querySelectorAll('.theme-dot').length,
+  switches: document.querySelectorAll('.switch').length,
+  poll: document.querySelectorAll('#pollSeg .seg-b').length,
+  perm: document.querySelector('#permBadge')?.textContent?.trim(),
+  ver: document.querySelector('#verTxt')?.textContent?.trim()
+}));
+ok('设置页可打开且项目齐全', !!setState.on && setState.themes === 4 && setState.switches === 2 && setState.poll === 4, JSON.stringify(setState));
+ok('设置页展示通知权限状态', ['已开启', '未开启', '已关闭', '不支持'].indexOf(setState.perm) > -1, setState.perm);
 
 // 打开一条线路（静态数据第一条）
 const lineName = await page.evaluate(() => {
@@ -71,14 +91,21 @@ ok('线路详情打开', !!lineState.open && lineState.vtRows > 3, `${lineName} 
 ok('横向时间轴可左右滚动', lineState.hScroll === 'auto' && lineState.scrollable, `${lineState.tlNodes} 节点`);
 ok('首页已无附近站点栏目', lineState.nearby === 0);
 
-// 确认线上已部署「还要 N 站」高亮条版本
+// 确认线上已部署 v1.2.0（流程详情 / 设置 / 主题）
 const deploy = await page.evaluate(async () => {
   const txt = async (u) => (await fetch(u, { cache: 'no-store' })).text();
-  const [js, css] = await Promise.all([txt('js/plan.js'), txt('css/app.css')]);
-  return { js: js.indexOf('pl-hl') > -1, css: css.indexOf('.pl-hl') > -1 };
+  const [plan, settings, css] = await Promise.all([txt('js/plan.js'), txt('js/settings.js'), txt('css/theme.css')]);
+  return {
+    hero: plan.indexOf('到目的地还有') > -1,
+    flow: plan.indexOf('fl-seg') > -1,
+    settings: settings.length > 500,
+    theme: css.indexOf('data-theme="sky"') > -1
+  };
 });
-ok('线上已部署方案详情高亮条（JS）', deploy.js);
-ok('线上已部署方案详情高亮条（CSS）', deploy.css);
+ok('线上已部署「到目的地还有 N 站」', deploy.hero);
+ok('线上已部署换乘流程详情', deploy.flow);
+ok('线上已部署设置页脚本', deploy.settings);
+ok('线上已部署多套主题', deploy.theme);
 
 const shotDir = 'C:/work/bus/_tmp/shots';
 await page.screenshot({ path: `${shotDir}/live-line.png` });

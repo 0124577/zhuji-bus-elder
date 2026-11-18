@@ -82,8 +82,159 @@
     LINE_POLL: 20000,
     STATION_POLL: 30000,
     REMIND_POLL: 15000,
-    MAX_FAV: 30
+    MAX_FAV: 30,
+    VERSION: '1.2.0'
   };
+
+  /* ================= 偏好设置（主题 / 提示音 / 震动 / 音量 / 轮询） ================= */
+  const PREF_KEY = 'zjbus.settings.v1';
+  const THEMES = [
+    { key: 'rose', name: '玫瑰粉', color: '#FF5C8A' },
+    { key: 'sky', name: '天空蓝', color: '#2E7BF6' },
+    { key: 'leaf', name: '松柏绿', color: '#18A05E' },
+    { key: 'amber', name: '暖橙', color: '#F08019' }
+  ];
+  const PREF_DEF = { theme: 'rose', sound: true, vibrate: true, volume: 70, poll: 15 };
+
+  function applyTheme() {
+    const t = Prefs.all().theme;
+    document.documentElement.setAttribute('data-theme', THEMES.some((x) => x.key === t) ? t : 'rose');
+    const meta = document.querySelector('meta[name="theme-color"]');
+    const cur = THEMES.find((x) => x.key === Prefs.get('theme')) || THEMES[0];
+    if (meta) meta.setAttribute('content', cur.color);
+  }
+
+  const Prefs = {
+    THEMES: THEMES,
+    KEY: PREF_KEY,
+    DEFAULTS: PREF_DEF,
+    all() {
+      const raw = Store.get(PREF_KEY, {}) || {};
+      return Object.assign({}, PREF_DEF, raw);
+    },
+    get(k) { return Prefs.all()[k]; },
+    set(k, v) {
+      const a = Prefs.all();
+      a[k] = v;
+      Store.set(PREF_KEY, a);
+      applyTheme();
+      return a;
+    },
+    reset() { Store.del(PREF_KEY); applyTheme(); }
+  };
+  ZJ.Prefs = Prefs;
+  applyTheme();
+
+  /* ================= 提示音（WebAudio 合成，无需音频文件） ================= */
+  const Sound = {
+    ctx: null,
+    ensure() {
+      if (Sound.ctx) return Sound.ctx;
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return null;
+      try { Sound.ctx = new AC(); } catch (e) { Sound.ctx = null; }
+      return Sound.ctx;
+    },
+    unlock() {
+      const c = Sound.ensure();
+      if (c && c.state === 'suspended') c.resume().catch(() => {});
+    },
+    /* 三声上行提示音，音量 0–100 */
+    chime(volume) {
+      if (!Prefs.get('sound')) return false;
+      const c = Sound.ensure();
+      if (!c) return false;
+      if (c.state === 'suspended') c.resume().catch(() => {});
+      const v = volume == null ? Prefs.get('volume') : volume;
+      const gain0 = Math.max(0, Math.min(1, v / 100)) * 0.34;
+      if (gain0 <= 0.001) return false;
+      const now = c.currentTime;
+      [0, 0.22, 0.44].forEach((t, i) => {
+        const o = c.createOscillator();
+        const g = c.createGain();
+        o.type = 'sine';
+        o.frequency.setValueAtTime([880, 1046.5, 1318.5][i], now + t);
+        g.gain.setValueAtTime(0, now + t);
+        g.gain.linearRampToValueAtTime(gain0, now + t + 0.02);
+        g.gain.exponentialRampToValueAtTime(0.0001, now + t + 0.26);
+        o.connect(g).connect(c.destination);
+        o.start(now + t);
+        o.stop(now + t + 0.3);
+      });
+      return true;
+    }
+  };
+  ZJ.Sound = Sound;
+
+  /* ================= 系统通知（Capacitor 原生插件优先，Web 兜底） ================= */
+  const Notify = {
+    plugin() {
+      try {
+        const C = window.Capacitor;
+        return (C && C.Plugins && C.Plugins.ZjNotify) || null;
+      } catch (e) { return null; }
+    },
+    native() { return !!Notify.plugin(); },
+    /* granted | prompt | denied | unsupported */
+    async status() {
+      const p = Notify.plugin();
+      if (p && p.check) {
+        try {
+          const r = await p.check();
+          if (r && r.granted) return 'granted';
+          return r && r.canAsk ? 'prompt' : 'denied';
+        } catch (e) {}
+      }
+      if (typeof window.Notification === 'undefined') return 'unsupported';
+      const s = window.Notification.permission;
+      return s === 'granted' ? 'granted' : s === 'denied' ? 'denied' : 'prompt';
+    },
+    async request() {
+      const p = Notify.plugin();
+      if (p && p.request) {
+        try {
+          const r = await p.request();
+          return r && r.granted ? 'granted' : 'denied';
+        } catch (e) { return 'denied'; }
+      }
+      if (typeof window.Notification === 'undefined') return 'unsupported';
+      try {
+        const r = await window.Notification.requestPermission();
+        return r === 'granted' ? 'granted' : r === 'denied' ? 'denied' : 'prompt';
+      } catch (e) { return 'denied'; }
+    },
+    async openSettings() {
+      const p = Notify.plugin();
+      if (p && p.openSettings) {
+        try { await p.openSettings(); return true; } catch (e) { return false; }
+      }
+      return false;
+    },
+    /* 到站时：系统通知（响铃）+ 应用内提示音 */
+    async fire(title, body) {
+      const p = Notify.plugin();
+      if (p && p.notify) {
+        try {
+          await p.notify({
+            title: title,
+            body: body,
+            sound: !!Prefs.get('sound'),
+            vibrate: !!Prefs.get('vibrate'),
+            volume: Number(Prefs.get('volume')) || 0
+          });
+          return true;
+        } catch (e) {}
+      }
+      try {
+        if (typeof window.Notification !== 'undefined' && window.Notification.permission === 'granted') {
+          new window.Notification(title, { body: body, tag: 'zjbus-arrive' });
+          return true;
+        }
+      } catch (e) {}
+      return false;
+    }
+  };
+  ZJ.Notify = Notify;
 
   /* ================= 静态数据索引 ================= */
   const SNAP = window.SNAPSHOT || { names: [], lines: [] };
@@ -530,6 +681,7 @@
       setTimeout(() => { if (!mask.classList.contains('on')) { mask.hidden = true; $('alertCard').innerHTML = ''; } }, 240);
     },
     vibrate(pattern) {
+      if (!Prefs.get('vibrate')) return false;
       try {
         if (navigator.vibrate) { navigator.vibrate(pattern || [300, 120, 300]); return true; }
       } catch (e) {}
