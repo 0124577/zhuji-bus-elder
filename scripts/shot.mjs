@@ -20,6 +20,8 @@ await page.goto(BASE, { waitUntil: 'networkidle2' });
 await page.evaluate(() => localStorage.clear());
 await page.reload({ waitUntil: 'networkidle2' });
 await sleep(2200);
+/* 截图流程里不弹通知权限引导，避免遮挡页面 */
+await page.evaluate(() => { if (ZJ && ZJ.Settings) ZJ.Settings.promptPermIfNeeded = () => {}; });
 await page.screenshot({ path: `${OUT}/01-home.png` });
 
 /* 模拟实时车辆：等车站第 11 站，最近车辆在第 10 站驶向第 11 站，剩 1 站 */
@@ -100,6 +102,33 @@ await page.evaluate(() => { ZJ.Plan.close(); ZJ.setTab('home'); });
 await page.waitForFunction(() => !document.querySelector('.fullpage.on'));
 await sleep(700);
 await page.screenshot({ path: `${OUT}/11-home-remind.png` });
+
+/* 设置页 */
+await page.evaluate(() => { if (ZJ.UI.closeAlert) ZJ.UI.closeAlert(); ZJ.Settings.promptPermIfNeeded = () => {}; });
+await sleep(500);
+await page.evaluate(() => ZJ.setTab('settings'));
+await page.evaluate(() => { ZJ.Notify.status = async () => 'granted'; ZJ.Settings.render(); });
+await sleep(900);
+await page.screenshot({ path: `${OUT}/12-settings.png` });
+
+/* 主题切换（天空蓝） */
+await page.evaluate(() => document.querySelectorAll('.theme-dot')[1].click());
+await sleep(1400);
+await page.screenshot({ path: `${OUT}/13-settings-theme.png` });
+await page.evaluate(() => document.querySelectorAll('.theme-dot')[0].click());
+await sleep(600);
+
+/* 通知权限引导弹窗 */
+await page.evaluate(() => {
+  ZJ.Notify.status = async () => 'denied';
+  ZJ.Settings.render();
+});
+await sleep(400);
+await page.evaluate(() => document.getElementById('btnReqNotify').click());
+await sleep(700);
+await page.screenshot({ path: `${OUT}/14-perm-alert.png` });
+await page.evaluate(() => { const b = document.querySelector('[data-act="permalert-close"]'); if (b) b.click(); });
+await sleep(400);
 
 console.log('shots done →', OUT);
 await browser.close();

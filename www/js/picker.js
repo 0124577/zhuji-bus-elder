@@ -106,6 +106,10 @@
         }
         renderList();
       });
+      /* 站名搜索 Tab 自动聚焦，省一次点击（线路 Tab 不弹键盘，避免挡列表） */
+      if (!P.scoped && P.tab === 'search') {
+        try { input.focus({ preventScroll: true }); } catch (e) {}
+      }
     }
   }
 

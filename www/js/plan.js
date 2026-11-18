@@ -38,25 +38,33 @@
     return best;
   }
 
-  /* 顶部「还剩几站」高亮条：老年用户最先要看的一条信息 */
-  function liveHl() {
+  /* 顶部大字「到目的地还有 N 站」：老年用户最先要看的一条信息（无实时车也给静态口径） */
+  function hero() {
+    const p = P.plan;
+    const stops = p.legs.reduce((a, l) => a + l.stops, 0);
+    const arrive = ZJ.minHM(ZJ.nowMin() + p.total);
     const s = soonest();
-    if (!s) return '';
-    const eta = s.atStation ? '车已到站，请上车' : '约 ' + s.minutes + ' 分钟到站';
-    return '<div class="pl-hl" data-act="pl-hl" data-idx="' + s.idx + '">' +
-      '<div class="pl-hl-l"><span class="pl-hl-txt">' + (s.remain === 0 ? '车已到' : '还有') + '</span>' +
-      '<span class="pl-hl-num">' + s.remain + '<em>站</em></span></div>' +
-      '<div class="pl-hl-r"><b>' + eta + ' · 「' + ZJ.esc(s.leg.from) + '」</b>' +
-      '<span><i class="live-dot"></i>' + ZJ.esc(s.leg.line) + ' · 第 ' + (s.idx + 1) + ' 段' +
-      (s.plate ? ' · ' + ZJ.esc(s.plate) : '') + '</span></div>' +
-      '</div>';
+    const anyErr = p.legs.some((l) => legData(l).err);
+    let sub;
+    if (s) {
+      sub = '<i class="live-dot"></i>' + ZJ.esc(s.leg.line) +
+        (s.remain === 0 ? ' 车已到上车站' : ' 还有 ' + s.remain + ' 站到上车站');
+    } else if (anyErr) {
+      sub = '<i class="live-dot off"></i>实时不可用 · 按静态里程估算';
+    } else {
+      sub = '<i class="live-dot off"></i>暂无在线车辆 · 按静态里程估算';
+    }
+    return '<div class="pl-hl' + (s ? '' : ' static') + '"' +
+      (s ? ' data-act="pl-hl" data-idx="' + s.idx + '"' : '') + '>' +
+      '<div class="pl-hl-l"><span class="pl-hl-txt">到目的地还有</span>' +
+      '<span class="pl-hl-num">' + stops + '<em>站</em></span></div>' +
+      '<div class="pl-hl-r"><b>约 ' + p.total + ' 分钟 · ' + arrive + ' 到达</b>' +
+      '<span>' + sub + '</span></div></div>';
   }
 
   /* ---------------- 汇总 ---------------- */
   function renderSummary() {
     const p = P.plan;
-    const stops = p.legs.reduce((s, l) => s + l.stops, 0);
-    const arrive = ZJ.minHM(ZJ.nowMin() + p.total);
     const anyErr = p.legs.some((l) => legData(l).err);
     const noLive = p.legs.every((l) => !legData(l).vehicles.length);
     const staticMode = ZJ.Api.mode === 'static';
@@ -68,23 +76,9 @@
         '<div><b>实时数据暂不可用，已自动降级</b><span>' +
         (staticMode ? '当前为静态数据模式，站点、首末班、换乘方案照常可用' : '实时接口请求失败，已使用静态线路数据（站序 / 首末班 / 里程估算）') +
         '</span></div><button data-act="plan-refresh">重试</button></div>';
-    } else if (noLive) {
-      banner = '<div class="degrade-banner soft"><svg class="ico"><use href="#i-bus"/></svg>' +
-        '<div><b>当前时段暂无在线车辆</b><span>已按静态里程与首末班估算，发车后自动更新</span></div>' +
-        '<button data-act="plan-refresh">刷新</button></div>';
     }
 
-    $('plSummary').innerHTML = banner + liveHl() +
-      '<section class="card pl-sum">' +
-      '<div class="pl-sum-top"><div class="big">' + p.total + '<small>分钟</small></div>' +
-      '<div class="pl-sum-meta"><b>' + ZJ.esc(P.from) + ' → ' + ZJ.esc(P.to) + '</b>' +
-      '<span>约 ' + arrive + ' 到达 · 乘车 ' + p.ride + ' 分钟' + (p.transfers ? ' · 换乘预留 ' + p.transfers * 5 + ' 分钟' : '') + '</span></div></div>' +
-      '<div class="pl-sum-chips">' +
-      '<span class="tag pink">' + (p.transfers === 0 ? '直达' : '换乘 ' + p.transfers + ' 次') + '</span>' +
-      '<span class="tag">共 ' + stops + ' 站</span>' +
-      '<span class="tag">' + p.legs.length + ' 段行程</span>' +
-      '<span class="tag ' + (degraded || noLive ? '' : 'live') + '">' + (degraded ? '静态数据' : noLive ? '暂无在线车辆' : '实时更新中') + '</span>' +
-      '</div></section>';
+    $('plSummary').innerHTML = banner + hero();
   }
 
   /* ---------------- 单段卡片 ---------------- */

@@ -30,7 +30,7 @@ const browser = await puppeteer.launch({
 });
 
 const ctx = browser.defaultBrowserContext();
-await ctx.overridePermissions(ORIGIN, ['geolocation']);
+await ctx.overridePermissions(ORIGIN, ['geolocation', 'notifications']);
 
 const page = await browser.newPage();
 await page.setViewport({ width: 390, height: 844, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
@@ -66,14 +66,16 @@ await page.goto(BASE, { waitUntil: 'networkidle2' });
 await page.evaluate(() => { localStorage.clear(); });
 await page.reload({ waitUntil: 'networkidle2' });
 await page.waitForSelector('.line-row', { timeout: 8000 });
+await sleep(1200);
+await page.evaluate(() => { window.__chimeOrig = ZJ.Sound.chime.bind(ZJ.Sound); });
 await sleep(1600);
 
 /* ---------------- 1. 基础加载 ---------------- */
 section('基础加载与静态数据');
 ok('页面标题正确', (await page.title()).indexOf('诸暨公交') > -1, await page.title());
-ok('底部只有 2 个 Tab', (await cnt('.tab')) === 2, 'count=' + (await cnt('.tab')));
+ok('底部有 3 个 Tab', (await cnt('.tab')) === 3, 'count=' + (await cnt('.tab')));
 const tabTexts = await page.$$eval('.tab', (els) => els.map((e) => e.textContent.trim()));
-ok('Tab 为「首页 / 去哪」', tabTexts.join('/') === '首页/去哪', tabTexts.join('/'));
+ok('Tab 为「首页 / 出行 / 设置」', tabTexts.join('/') === '首页/出行/设置', tabTexts.join('/'));
 const meta = await page.evaluate(() => ({
   lines: ZJ.Data.lines.length,
   stations: ZJ.Data.stations.length,
@@ -278,7 +280,7 @@ await page.evaluate(() => {
 await sleep(700);
 const rmSheet = await txt('#sheet');
 ok('提醒弹层包含三种方式', rmSheet.indexOf('到站提醒') > -1 && rmSheet.indexOf('下一站提醒') > -1 && rmSheet.indexOf('提前 2 站') > -1);
-ok('提醒弹层说明不做推送', rmSheet.indexOf('不发送系统推送') > -1);
+ok('提醒弹层说明响铃与震动', rmSheet.indexOf('响铃') > -1 && rmSheet.indexOf('震动') > -1, rmSheet.slice(-80));
 await page.evaluate(() => document.querySelector('.rm-mode[data-mode="one"]').click());
 await sleep(200);
 ok('可切换到「下一站提醒」', await page.$eval('.rm-mode[data-mode="one"]', (el) => el.classList.contains('on')));
@@ -349,8 +351,8 @@ await sleep(600);
 section('换乘规划与历史');
 await page.evaluate(() => ZJ.setTab('go'));
 await sleep(500);
-ok('切到去哪页', await page.$eval('#page-go', (el) => el.classList.contains('on')));
-ok('去哪页显示起终点选择', (await txt('#fromName')).indexOf('起点') > -1, await txt('#fromName'));
+ok('切到出行页', await page.$eval('#page-go', (el) => el.classList.contains('on')));
+ok('出行页显示起终点选择', (await txt('#fromName')).indexOf('起点') > -1, await txt('#fromName'));
 
 await pickStation('pick-from', '火车站');
 ok('起点已选择', (await txt('#fromName')) === '火车站', await txt('#fromName'));
@@ -362,7 +364,9 @@ ok('方案切换标签 >= 1', planTabs >= 1, String(planTabs));
 const planTxt = await txt('#planResult');
 ok('方案含预计耗时', /\d+分钟|\d+ 分钟/.test(planTxt), planTxt.slice(0, 80));
 ok('方案含乘车段', planTxt.indexOf('乘') > -1, planTxt.slice(0, 100));
-ok('方案含免责说明', planTxt.indexOf('仅供参考') > -1);
+ok('页脚含免责说明', (await txt('#page-go .foot-note')).indexOf('仅供参考') > -1, await txt('#page-go .foot-note'));
+ok('方案卡突出「到目的地还有 N 站」', /到目的地还有\s*\d+\s*站/.test(planTxt), planTxt.slice(0, 40));
+ok('方案标签显示线路与耗时', /\d+路.*\d+ 分钟/.test(await txt('.plan-tab'), ), await txt('.plan-tab'));
 ok('方案卡片可点击进详情', await has('.plan-cardlink[data-act="plan-open"]'));
 ok('方案卡片带详情提示', (await txt('.plan-more')).indexOf('实时') > -1, await txt('.plan-more'));
 ok('历史记录已保存', await page.evaluate(() => (ZJ.Store.get('zjbus.history.v1', []) || []).length === 1));
@@ -396,8 +400,8 @@ await page.evaluate(() => {
 });
 await sleep(1400);
 ok('展示分段卡片', (await cnt('.pl-leg')) >= 1, String(await cnt('.pl-leg')));
-ok('汇总显示总耗时', /\d+/.test(await txt('.pl-sum .big')), await txt('.pl-sum .big'));
-ok('汇总显示站数与段数', /共 \d+ 站/.test(await txt('.pl-sum-chips')), await txt('.pl-sum-chips'));
+ok('顶部大字显示到目的地站数', /到目的地还有\s*\d+\s*站/.test(await txt('.pl-hl')), await txt('.pl-hl'));
+ok('大字旁显示耗时与到达时间', /约 \d+ 分钟/.test(await txt('.pl-hl')) && /到达/.test(await txt('.pl-hl')), await txt('.pl-hl'));
 const legLive = await txt('.pl-live');
 ok('分段展示实时车辆信息', legLive.length > 0, legLive.slice(0, 60));
 ok('实时块含剩余站或收班说明', /(\d+\s*站|已收班|暂无|实时数据)/.test(legLive), legLive.slice(0, 60));
@@ -414,18 +418,18 @@ const hl = await page.evaluate(() => {
     bg: getComputedStyle(el).backgroundImage,
     num: parseInt(num.textContent, 10),
     h: Math.round(lay.height),
-    above: !!(el.compareDocumentPosition(document.querySelector('.pl-sum')) & Node.DOCUMENT_POSITION_FOLLOWING),
+    above: !!(el.compareDocumentPosition(document.querySelector('.pl-leg')) & Node.DOCUMENT_POSITION_FOLLOWING),
     caps: !!document.querySelector('.pl-remain'),
     capFont: document.querySelector('.pl-remain b') ? parseFloat(getComputedStyle(document.querySelector('.pl-remain b')).fontSize) : 0
   };
 });
 if (hl) {
-  ok('详情页顶部突出「还有 N 站」', /(还有|车已到)\s*\d+\s*站/.test(hl.txt), hl.txt.slice(0, 60));
+  ok('详情页顶部突出「到目的地还有 N 站」', /到目的地还有\s*\d+\s*站/.test(hl.txt), hl.txt.slice(0, 60));
   ok('剩余站数字 >= 28px 大字', hl.font >= 28, String(hl.font));
   ok('高亮条为高对比渐变底且在汇总卡之上', /gradient/.test(hl.bg) && hl.above, 'h=' + hl.h);
   ok('分段剩余站为白字粉底胶囊且数字 >= 22px', hl.caps && hl.capFont >= 22, 'capFont=' + hl.capFont);
 } else {
-  ok('无在线车辆时不渲染高亮条', !hl && /(已收班|暂无|实时数据)/.test(legLive), legLive.slice(0, 40));
+  ok('无在线车辆时大字条改为静态口径', !hl && /(已收班|暂无|实时数据)/.test(legLive), legLive.slice(0, 40));
   ok('无在线车辆时汇总改为静态口径', /(暂无在线车辆|静态数据)/.test(await txt('#plSummary')), (await txt('#plSummary')).slice(0, 40));
   ok('无在线车辆时分段卡片与站点条仍完整', (await cnt('.pl-leg')) >= 1 && (await cnt('.pl-strip .tl-item')) > 5);
   ok('无在线车辆时提醒铃铛仍可用', (await cnt('.pl-bell')) > 3);
@@ -539,6 +543,162 @@ await sleep(800);
 ok('起终点相同时给出提示', (await txt('#toast')).indexOf('不能') > -1, await txt('#toast'));
 
 /* ---------------- 13. 边界场景 ---------------- */
+section('设置页（主题 / 提醒方式 / 通知权限 / 数据）');
+await page.evaluate(() => ZJ.setTab('settings'));
+await sleep(500);
+ok('切到设置页', await page.$eval('#page-settings', (el) => el.classList.contains('on')));
+ok('提供 4 种主题色', (await cnt('.theme-dot')) === 4, String(await cnt('.theme-dot')));
+await page.evaluate(() => document.querySelectorAll('.theme-dot')[1].click());
+await sleep(300);
+const themeState = await page.evaluate(() => ({
+  attr: document.documentElement.getAttribute('data-theme'),
+  saved: ZJ.Prefs.get('theme'),
+  on: document.querySelectorAll('.theme-dot.on').length,
+  meta: document.querySelector('meta[name="theme-color"]').content
+}));
+ok('切换主题后立即生效', themeState.attr === 'sky' && themeState.saved === 'sky', JSON.stringify(themeState));
+ok('主题选择高亮唯一', themeState.on === 1, String(themeState.on));
+ok('主题色同步系统状态栏色', themeState.meta.toLowerCase() === '#2e7bf6', themeState.meta);
+await page.evaluate(() => document.querySelectorAll('.theme-dot')[0].click());
+await sleep(250);
+ok('可切回玫瑰粉', (await page.evaluate(() => document.documentElement.getAttribute('data-theme'))) === 'rose');
+
+await page.evaluate(() => document.getElementById('swSound').click());
+await sleep(250);
+ok('可关闭提示音', await page.evaluate(() => ZJ.Prefs.get('sound') === false));
+ok('关闭后不再响铃', await page.evaluate(() => window.__chimeOrig() === false));
+await page.evaluate(() => document.getElementById('swSound').click());
+await sleep(250);
+ok('可重新开启提示音', await page.evaluate(() => ZJ.Prefs.get('sound') === true));
+
+await page.evaluate(() => document.getElementById('swVibrate').click());
+await sleep(250);
+ok('可关闭震动', await page.evaluate(() => ZJ.Prefs.get('vibrate') === false));
+ok('关闭后震动不触发', await page.evaluate(() => ZJ.UI.vibrate([10]) === false));
+await page.evaluate(() => document.getElementById('swVibrate').click());
+await sleep(250);
+ok('可重新开启震动', await page.evaluate(() => ZJ.Prefs.get('vibrate') === true));
+
+const volSet = await page.evaluate(() => {
+  const r = document.getElementById('volRange');
+  r.value = '40';
+  r.dispatchEvent(new Event('input', { bubbles: true }));
+  r.dispatchEvent(new Event('change', { bubbles: true }));
+  return { pref: ZJ.Prefs.get('volume'), label: document.getElementById('volTxt').textContent };
+});
+ok('可调节提示音音量', volSet.pref === 40 && volSet.label === '40%', JSON.stringify(volSet));
+ok('音量滑块存在且范围 0-100', await page.$eval('#volRange', (el) => el.min === '0' && el.max === '100'));
+
+await page.evaluate(() => document.querySelector('[data-act="set-poll"][data-v="30"]').click());
+await sleep(300);
+const pollState = await page.evaluate(() => ({ pref: ZJ.Prefs.get('poll'), on: document.querySelector('#pollSeg .seg-b.on').dataset.v }));
+ok('提醒轮询间隔可设置', pollState.pref === 30 && pollState.on === '30', JSON.stringify(pollState));
+await page.evaluate(() => document.querySelector('[data-act="set-poll"][data-v="15"]').click());
+await sleep(200);
+
+const permBadge = await txt('#permBadge');
+ok('展示通知权限状态', ['已开启', '未开启', '已关闭', '不支持'].indexOf(permBadge) > -1, permBadge);
+await page.evaluate(() => { ZJ.Notify.status = async () => 'prompt'; ZJ.Settings.render(); });
+await sleep(400);
+await page.evaluate(() => document.getElementById('btnReqNotify').click());
+await sleep(600);
+const permAlert = await txt('#alertCard');
+ok('无权限时弹窗给出明确说明', permAlert.indexOf('通知') > -1 && permAlert.indexOf('响铃') > -1, permAlert.slice(0, 80));
+ok('弹窗可一键开启通知', await has('[data-act="perm-request"]'));
+ok('弹窗提供去系统设置入口', await has('[data-act="open-notify-set"]'));
+await clickAct('permalert-close');
+await sleep(400);
+ok('弹窗可关闭', await page.$eval('#alertMask', (el) => el.hidden));
+
+await page.evaluate(() => { ZJ.Notify.status = async () => 'denied'; ZJ.Settings.render(); });
+await sleep(400);
+ok('权限被关闭时状态为「已关闭」', (await txt('#permBadge')) === '已关闭', await txt('#permBadge'));
+await page.evaluate(() => document.getElementById('btnReqNotify').click());
+await sleep(600);
+const deniedAlert = await txt('#alertCard');
+ok('已关闭时给出设置步骤', deniedAlert.indexOf('设置') > -1 && deniedAlert.indexOf('应用') > -1, deniedAlert.slice(0, 90));
+await clickAct('permalert-close');
+await sleep(300);
+await page.evaluate(() => { ZJ.Notify.status = async () => 'granted'; ZJ.Settings.render(); });
+await sleep(300);
+ok('已开启时状态为「已开启」', (await txt('#permBadge')) === '已开启', await txt('#permBadge'));
+
+/* 清除缓存 */
+await page.evaluate(() => document.querySelector('[data-act="clear-cache"]').click());
+await sleep(500);
+ok('清除缓存前有确认弹窗', (await txt('#alertCard')).indexOf('清除') > -1, (await txt('#alertCard')).slice(0, 50));
+await page.evaluate(() => document.querySelector('[data-act="clear-cache-do"]').click());
+await sleep(600);
+const afterClear = await page.evaluate(() => ({
+  hist: (ZJ.Store.get('zjbus.history.v1', []) || []).length,
+  fav: (ZJ.Store.get('zjbus.fav.lines.v1', []) || []).length,
+  theme: ZJ.Prefs.get('theme')
+}));
+ok('清除缓存清空查询记录', afterClear.hist === 0, JSON.stringify(afterClear));
+ok('清除缓存不影响收藏与设置', afterClear.theme === 'rose', JSON.stringify(afterClear));
+
+/* 关于 */
+await page.evaluate(() => document.querySelector('[data-act="about"]').click());
+await sleep(500);
+const about = await txt('#sheet');
+ok('关于页显示版本号', about.indexOf('v' + (await page.evaluate(() => ZJ.CFG.VERSION))) > -1, about.slice(0, 60));
+ok('关于页说明数据来源', about.indexOf('官方接口') > -1);
+ok('关于页可关闭', await has('#sheet [data-act="close-sheet"]'));
+await page.evaluate(() => ZJ.UI.closeSheet());
+await sleep(400);
+
+section('到站提醒（响铃 + 震动 + 系统通知）');
+await page.evaluate(() => {
+  ZJ.Api.vehicles = async () => ({ busAverageSpeed: 240, list: [
+    { vehicleOrder: 10, distance: 120, isArriveStation: 0, plateNumber: '浙D00001D' }
+  ], static: false });
+  ZJ.Api.lineDetail = async () => ({ lineName: '23路', up: { totalPrice: 1.0 } });
+  ZJ.setTab('home');
+  ZJ.Line.open('23路', 'up', window.__testStation);
+});
+await page.waitForFunction(() => document.getElementById('page-line').classList.contains('on'), { timeout: 4000 });
+await sleep(1200);
+await page.evaluate(() => {
+  window.__vibrate = [];
+  window.__chime = 0;
+  window.__notified = 0;
+  navigator.vibrate = (p) => { window.__vibrate.push(p); return true; };
+  ZJ.Sound.chime = () => { window.__chime++; return true; };
+  ZJ.Notify.fire = async () => { window.__notified++; return true; };
+  document.querySelector('.vt-row[data-station="' + window.__testStation + '"] .vt-bell').click();
+});
+await sleep(700);
+ok('提醒弹层包含三种方式', (await txt('#sheet')).indexOf('到站提醒') > -1);
+await page.evaluate(() => document.querySelector('.rm-mode[data-mode="one"]').click());
+await sleep(200);
+await clickAct('rm-save');
+await sleep(1200);
+ok('提醒已写入本地', await page.evaluate(() => ZJ.Reminder.list().length === 1));
+const fired = await page.$eval('#alertMask', (el) => !el.hidden);
+ok('车辆剩 1 站时弹出到站提醒', fired, 'alert hidden');
+if (fired) {
+  ok('提醒触发时响铃', (await page.evaluate(() => window.__chime)) > 0, String(await page.evaluate(() => window.__chime)));
+  ok('提醒触发时震动', (await page.evaluate(() => window.__vibrate.length)) > 0, String(await page.evaluate(() => window.__vibrate.length)));
+  ok('有通知权限时发送系统通知', (await page.evaluate(() => window.__notified)) > 0, String(await page.evaluate(() => window.__notified)));
+  ok('弹窗含车牌与站名', (await txt('#alertCard')).indexOf('浙D00001D') > -1, (await txt('#alertCard')).slice(0, 70));
+  await page.evaluate(() => document.getElementById('rmGo').click());
+  await sleep(400);
+  ok('弹窗可关闭', await page.$eval('#alertMask', (el) => el.hidden));
+}
+await page.evaluate(() => { ZJ.Line.close(); ZJ.setTab('home'); });
+await sleep(600);
+ok('首页显示提醒记录卡片', await page.$eval('#remindCard', (el) => !el.hidden));
+ok('提醒记录显示已提醒状态', (await txt('#remindBody')).indexOf('已提醒') > -1, await txt('#remindBody'));
+await page.evaluate(() => document.querySelector('[data-act="reminder-list"]').click());
+await sleep(600);
+ok('提醒管理弹层可打开', (await txt('#sheet')).indexOf('到站提醒') > -1);
+ok('管理弹层列出记录', (await cnt('.rm-item')) === 1, String(await cnt('.rm-item')));
+await page.evaluate(() => { const b = document.querySelector('.rm-item .r-del'); if (b) b.click(); });
+await sleep(500);
+ok('可删除提醒记录', await page.evaluate(() => ZJ.Reminder.list().length === 0));
+await page.evaluate(() => ZJ.UI.closeSheet());
+await sleep(400);
+
 section('边界场景');
 
 /* 13.1 站点搜索无结果 */

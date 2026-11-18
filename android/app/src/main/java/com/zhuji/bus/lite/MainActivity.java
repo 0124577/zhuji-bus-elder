@@ -12,8 +12,8 @@ import androidx.core.content.ContextCompat;
 import com.getcapacitor.BridgeActivity;
 
 /**
- * 诸暨公交 · 轻量双 Tab 版
- * 仅申请定位权限（Haversine 计算附近站点），无地图 SDK、无推送。
+ * 诸暨公交 · 易用版
+ * 申请定位权限（Haversine 计算附近站点）与通知权限（到站响铃提醒），无地图 SDK、无后台常驻。
  */
 public class MainActivity extends BridgeActivity {
 
@@ -21,6 +21,8 @@ public class MainActivity extends BridgeActivity {
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
+        /* 本地插件：到站系统通知（权限查询 / 申请 / 发通知 / 跳系统设置） */
+        registerPlugin(ZjNotifyPlugin.class);
         super.onCreate(savedInstanceState);
         try {
             WebView webView = getBridge().getWebView();

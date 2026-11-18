@@ -148,7 +148,10 @@
         '<div class="a-line"><svg class="ico"><use href="#i-bus"/></svg>' + ZJ.esc(rm.line) + ' · ' + ZJ.esc(dir.end) + ' 方向</div>' +
         '<div class="alert-btns"><button class="ghost" id="rmGo">知道了</button><button class="primary" id="rmView">查看线路</button></div>';
       ZJ.UI.alert(html);
+      /* 响铃 + 震动 + 系统通知（都按设置开关执行） */
+      ZJ.Sound.chime();
       ZJ.UI.vibrate([400, 150, 400, 150, 700]);
+      ZJ.Notify.fire(title, sub).catch(() => {});
       const $ = ZJ.$;
       const go = $('rmGo'), view = $('rmView');
       if (go) go.addEventListener('click', () => ZJ.UI.closeAlert());
@@ -160,7 +163,8 @@
     },
     start() {
       Reminder.stop();
-      timer = setInterval(() => Reminder.tick(), ZJ.CFG.REMIND_POLL);
+      const sec = Math.max(5, Math.min(60, Number(ZJ.Prefs ? ZJ.Prefs.get('poll') : 15) || 15));
+      timer = setInterval(() => Reminder.tick(), sec * 1000);
       Reminder.tick();
     },
     stop() {
@@ -195,7 +199,7 @@
       (end ? '<span>往 ' + ZJ.esc(end) + '</span>' : '') +
       '<span class="upd">' + ZJ.esc(target.station) + '</span></div>' +
       '<div class="rm-modes">' + modes + '</div>' +
-      '<p class="sheet-note">提醒只在 App 打开时通过本地弹窗 + 震动触发，不发送系统推送、不在后台驻留。实时数据中断时提醒会暂停。</p>' +
+      '<p class="sheet-note">到站时会弹窗、响铃并震动；开启通知权限后，锁屏或切到后台也能收到。实时数据中断时提醒会暂停。</p>' +
       '<button class="sheet-primary" data-act="rm-save">' + (rm ? '更新提醒方式' : '开启提醒') + '</button>' +
       (rm ? '<button class="mini" style="width:100%;margin-top:10px;height:38px" data-act="rm-cancel">关闭该站提醒</button>' : '') +
       '</div>';
@@ -221,6 +225,10 @@
     ZJ.UI.closeSheet();
     if (rm) ZJ.toast('已开启：' + MODES[rm.mode].label);
     if (uiDone) uiDone();
+    /* 没有通知权限时，明确告诉用户锁屏收不到 */
+    if (rm && ZJ.Settings && ZJ.Settings.promptPermIfNeeded) {
+      setTimeout(() => ZJ.Settings.promptPermIfNeeded(), 420);
+    }
   });
   ZJ.act('rm-cancel', () => {
     if (!uiTarget) return;

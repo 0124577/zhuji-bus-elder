@@ -9,11 +9,11 @@
   function renderFav() {
     const lines = ZJ.Fav.lines();
     const sts = ZJ.Fav.stations();
+    const card = $('favCard');
+    /* 没有收藏时整块隐藏，首页更清爽 */
+    card.hidden = !lines.length && !sts.length;
     $('favCount').textContent = lines.length + sts.length ? lines.length + ' 线路 · ' + sts.length + ' 站点' : '';
-    if (!lines.length && !sts.length) {
-      $('favBody').innerHTML = '<div class="empty-block">还没有收藏<br>在线路页点右上角星星，在站点页收藏常用站</div>';
-      return;
-    }
+    if (!lines.length && !sts.length) { $('favBody').innerHTML = ''; return; }
     let html = '';
     if (lines.length) {
       html += '<div class="fav-group"><div class="fav-lab">收藏线路</div><div class="chips">' +
