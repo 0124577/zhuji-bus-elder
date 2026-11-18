@@ -1,0 +1,244 @@
+/* ==================================================================
+   v1.3.0 —— 主题色 / 出行结果 / 方案流程 / 设置页
+   与 app.css 分离：本文件只做「主题切换 + 新组件」，便于单独维护
+   ================================================================== */
+
+/* ---------- 主题色（只换主色，版式与字号不变） ---------- */
+:root[data-theme="sky"]{
+  --pink:#2E7BF6;--pink-2:#5C9DFB;--pink-3:#9CC2FD;--pink-deep:#1B62D6;
+  --pink-soft:#EEF4FF;--pink-line:#D7E5FF;--brand-rgb:46,123,246;
+  --pink-t1:#4A6E9E;--pink-t2:#6E86A6;--pink-t3:#4A6E9E;--pink-t4:#1B62D6;
+  --shadow-pink:0 10px 24px rgba(46,123,246,.26);
+}
+:root[data-theme="leaf"]{
+  --pink:#18A05E;--pink-2:#3FBF80;--pink-3:#8FDDB8;--pink-deep:#0E8149;
+  --pink-soft:#EDFAF3;--pink-line:#CFEEDD;--brand-rgb:24,160,94;
+  --pink-t1:#3C7D5F;--pink-t2:#5F8E76;--pink-t3:#3C7D5F;--pink-t4:#0E8149;
+  --shadow-pink:0 10px 24px rgba(24,160,94,.24);
+}
+:root[data-theme="amber"]{
+  --pink:#F08019;--pink-2:#F79E4A;--pink-3:#FBC98F;--pink-deep:#D2660A;
+  --pink-soft:#FFF5EA;--pink-line:#FFE3C6;--brand-rgb:240,128,25;
+  --pink-t1:#9A6A38;--pink-t2:#A5835C;--pink-t3:#9A6A38;--pink-t4:#D2660A;
+  --shadow-pink:0 10px 24px rgba(240,128,25,.24);
+}
+
+/* ---------- 出行页：结果列表（一个列表，卡片先写「到目的地还有几站」） ---------- */
+.res-count{font-size:11.5px;color:var(--ink-3);padding:0 4px 8px}
+/* 输入有误（起终点相同）时的提示，与普通空态区分开 */
+/* 详情页大字条：左侧「到目的地还有」+ 站数，字号放大后需要更宽的左栏 */
+.pl-hl-l{min-width:92px}
+.pl-hl-txt{font-size:11.5px;letter-spacing:0;line-height:1.3;display:block}
+
+/* 出行页方案卡：把「到目的地还有几站」放在最上面 */
+.plan-hero{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:700;color:var(--ink-2);line-height:1.2}
+.plan-hero>b{font-size:22px;font-weight:800;color:var(--pink);letter-spacing:-1px;margin:0 1px}
+.plan-hero .kind{margin-left:auto;font-size:11px;font-weight:750;padding:2px 8px;border-radius:7px;background:#EAF9F2;color:#1B8F5C}
+.plan-hero .kind.tf{background:var(--pink-soft);color:var(--pink-deep)}
+.plan-sub{font-size:12px;color:var(--ink-3);margin-top:5px}
+.plan-sub b{color:var(--ink-2);font-weight:700}
+.plan-empty.tip{background:#FFF6E8;box-shadow:none;border:1px solid #FFE2BE}
+.plan-empty.tip b{color:#8A5210}
+.plan-empty.tip .ico{color:#E9B36A}
+.res-card{
+  display:block;width:100%;text-align:left;background:#fff;border-radius:16px;
+  box-shadow:var(--shadow);padding:13px 14px;margin-bottom:9px;border:1.5px solid transparent;
+}
+.res-card:active{transform:scale(.99);background:#FDFDFE}
+.res-stops{
+  display:flex;align-items:center;gap:8px;font-size:14px;font-weight:700;color:var(--ink-2);
+  line-height:1.2;
+}
+.res-stops b{font-size:22px;font-weight:800;color:var(--pink);letter-spacing:-1px;margin:0 1px}
+.res-sub{font-size:12px;color:var(--ink-3);margin-top:5px}
+.res-sub b{color:var(--ink-2);font-weight:700}
+.res-lines{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:9px}
+.res-badge{
+  display:inline-flex;align-items:center;gap:4px;font-size:12.5px;font-weight:750;
+  color:var(--pink-deep);background:var(--pink-soft);border-radius:9px;padding:3px 9px;
+}
+.res-badge .ico{width:13px;height:13px}
+.res-arrow{font-size:11px;color:#C3C9D6;font-weight:700}
+.res-live{
+  display:flex;align-items:center;gap:6px;margin-top:9px;background:#F7F8FB;border-radius:10px;
+  padding:8px 10px;font-size:12px;color:var(--ink-2);line-height:1.4;
+}
+.res-live b{color:var(--pink-t4);font-weight:800}
+.res-live.off{color:var(--ink-3)}
+.res-live.err{background:#FFF6E8;color:#8A5210}
+.res-live.err b{color:#8A5210}
+.res-go{margin-left:auto;color:var(--ink-3);font-size:11px;display:flex;align-items:center;gap:1px;flex:0 0 auto}
+.res-go .ico{width:13px;height:13px}
+.res-kind{font-size:11px;font-weight:750;padding:2px 8px;border-radius:7px;background:#EAF9F2;color:#1B8F5C;margin-left:auto;flex:0 0 auto}
+.res-kind.tf{background:var(--pink-soft);color:var(--pink-deep)}
+
+/* 附近可达站点 */
+.near-grp{margin-bottom:11px}
+.near-grp>.lab{display:flex;align-items:center;gap:5px;font-size:11.5px;color:var(--ink-3);margin:0 4px 6px}
+.near-grp>.lab .ico{width:13px;height:13px}
+.near-item{
+  display:flex;align-items:center;gap:8px;width:100%;text-align:left;background:#fff;
+  border-radius:12px;box-shadow:var(--shadow);padding:10px 12px;margin-bottom:7px;
+}
+.near-item:active{background:#FDFDFE}
+.near-item b{font-size:14px;font-weight:650;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.near-item .d{font-size:11.5px;color:var(--ink-3);flex:0 0 auto}
+.near-item .ok{font-size:10.5px;font-weight:750;color:#1B8F5C;background:#EAF9F2;padding:2px 7px;border-radius:7px;flex:0 0 auto}
+.near-item .pick{font-size:11px;font-weight:700;color:var(--pink);background:var(--pink-soft);padding:3px 8px;border-radius:8px;flex:0 0 auto}
+
+/* ---------- 方案详情：竖向换乘流程 ---------- */
+.pl-hero{
+  display:flex;align-items:center;gap:12px;padding:13px 14px;border-radius:17px;margin-bottom:11px;
+  background:linear-gradient(135deg,var(--pink) 0%,var(--pink-2) 62%,var(--pink-3) 100%);color:#fff;
+  box-shadow:0 9px 22px rgba(var(--brand-rgb),.3);
+}
+.pl-hero-l{flex:0 0 auto;min-width:78px;padding-right:12px;border-right:1px solid rgba(255,255,255,.34);text-align:center}
+.pl-hero-t{font-size:12px;font-weight:700;opacity:.96}
+.pl-hero-n{font-size:35px;font-weight:800;line-height:1.05;letter-spacing:-1.5px}
+.pl-hero-n em{font-style:normal;font-size:14px;font-weight:700;letter-spacing:0;margin-left:1px}
+.pl-hero-r{flex:1;min-width:0;display:flex;flex-direction:column;gap:4px}
+.pl-hero-r b{font-size:13.5px;font-weight:750;line-height:1.35}
+.pl-hero-r span{font-size:11.5px;opacity:.94;display:flex;align-items:center;gap:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+.flow{background:#fff;border-radius:18px;box-shadow:var(--shadow);padding:15px 13px 6px}
+.fl-row{display:flex;gap:11px;position:relative}
+.fl-rail{width:18px;flex:0 0 auto;display:flex;flex-direction:column;align-items:center;position:relative}
+.fl-dot{width:13px;height:13px;border-radius:50%;background:var(--pink);border:3px solid #fff;box-shadow:0 0 0 2px var(--pink);margin-top:3px;z-index:1}
+.fl-dot.end{background:#fff;box-shadow:0 0 0 2.5px var(--green)}
+.fl-dot.mid{background:#fff;box-shadow:0 0 0 2.5px var(--pink-2)}
+.fl-line{position:absolute;top:16px;bottom:-4px;width:3px;background:var(--pink-line);left:50%;margin-left:-1.5px;border-radius:2px}
+.fl-body{flex:1;min-width:0;padding-bottom:13px}
+.fl-name{font-size:16.5px;font-weight:750;line-height:1.3;word-break:break-all}
+.fl-name .tag{font-size:10.5px;font-weight:700;color:var(--ink-3);background:#F3F5F9;padding:2px 6px;border-radius:6px;margin-left:6px}
+.fl-sub{font-size:11.5px;color:var(--ink-3);margin-top:2px}
+
+.fl-seg{
+  border-radius:14px;background:linear-gradient(140deg,var(--pink-soft),#fff);
+  border:1px solid var(--pink-line);padding:11px 12px;margin-bottom:13px;
+}
+.fl-seg-h{display:flex;align-items:center;gap:8px;flex-wrap:nowrap}
+.fl-seg-h .fl-dir{font-size:11.5px;color:var(--ink-2);flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fl-bell{
+  width:38px;height:38px;border-radius:12px;display:flex;align-items:center;justify-content:center;
+  background:#fff;color:var(--ink-3);border:1px solid var(--pink-line);flex:0 0 auto;
+}
+.fl-bell.on{background:linear-gradient(135deg,var(--pink),var(--pink-2));color:#fff;border-color:transparent}
+.fl-hero-live{
+  display:flex;align-items:flex-start;gap:8px;margin-top:9px;background:#fff;border-radius:11px;padding:9px 10px;
+}
+.fl-hero-live .num{font-size:24px;font-weight:800;color:var(--pink);line-height:1;letter-spacing:-1px;flex:0 0 auto;padding-top:1px}
+.fl-hero-live .num em{font-style:normal;font-size:11.5px;font-weight:700;margin-left:1px}
+.fl-hero-live .txt{flex:1;min-width:0;font-size:11.5px;color:var(--ink-2);line-height:1.45}
+.fl-hero-live .txt b{font-weight:750}
+.fl-hero-live.err{background:#FFF6E8}
+.fl-hero-live.err .num{font-size:13px;color:#8A5210;letter-spacing:0}
+.fl-route-meta{margin-top:8px;font-size:11.5px;color:var(--ink-3);display:flex;flex-wrap:wrap;gap:4px 10px}
+.fl-route-meta b{color:var(--ink-2);font-weight:650}
+.fl-open{
+  display:flex;align-items:center;justify-content:center;gap:4px;width:100%;height:34px;margin-top:9px;
+  border-radius:10px;background:#fff;border:1px solid var(--pink-line);color:var(--pink-deep);
+  font-size:12px;font-weight:700;
+}
+.fl-open .ico{width:13px;height:13px}
+.fl-walk{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--ink-3);padding:2px 0 10px 3px}
+.fl-walk .ico{width:14px;height:14px}
+
+/* ---------- 设置页 ---------- */
+.set-hdr{
+  background:linear-gradient(150deg,var(--pink),var(--pink-2) 55%,var(--pink-3));
+  padding:calc(var(--sat) + 20px) 18px 26px;border-radius:0 0 26px 26px;
+}
+.set-hdr h1{font-size:24px;color:#fff;font-weight:800;letter-spacing:.5px}
+.set-hdr p{font-size:11.5px;color:rgba(255,255,255,.88);margin-top:5px}
+.set-body{padding:14px 14px 0}
+.set-sec{padding:14px}
+.set-row{display:flex;align-items:center;gap:10px;padding:11px 0;border-bottom:1px solid #F5F6FA}
+.set-row:last-child{border-bottom:0;padding-bottom:2px}
+.set-row.col{display:block}
+.set-line{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.set-t{flex:1;min-width:0}
+.set-t b{display:block;font-size:14.5px;font-weight:650}
+.set-t span{display:block;font-size:11.5px;color:var(--ink-3);margin-top:2px;line-height:1.4}
+.set-val{font-size:13px;font-weight:750;color:var(--pink);flex:0 0 auto}
+
+.switch{
+  width:50px;height:30px;border-radius:15px;background:#E4E7EE;position:relative;flex:0 0 auto;
+  transition:background .18s;
+}
+.switch::after{
+  content:"";position:absolute;left:3px;top:3px;width:24px;height:24px;border-radius:50%;
+  background:#fff;box-shadow:0 2px 5px rgba(20,24,40,.18);transition:transform .18s;
+}
+.switch.on{background:var(--pink)}
+.switch.on::after{transform:translateX(20px)}
+
+.vol-row{display:flex;align-items:center;gap:10px;margin-top:10px}
+.rng{
+  flex:1;-webkit-appearance:none;appearance:none;height:6px;border-radius:3px;background:var(--pink-line);outline:0;
+}
+.rng::-webkit-slider-thumb{
+  -webkit-appearance:none;width:24px;height:24px;border-radius:50%;background:#fff;
+  border:3px solid var(--pink);box-shadow:0 2px 6px rgba(var(--brand-rgb),.3);
+}
+.rng::-moz-range-thumb{width:22px;height:22px;border-radius:50%;background:#fff;border:3px solid var(--pink)}
+
+.seg{display:flex;gap:6px;margin-top:10px}
+.seg-b{
+  flex:1;height:36px;border-radius:10px;background:#F4F5F9;color:var(--ink-2);
+  font-size:12.5px;font-weight:650;
+}
+.seg-b.on{background:var(--pink);color:#fff;box-shadow:0 4px 12px rgba(var(--brand-rgb),.26)}
+
+.badge{font-size:11px;font-weight:750;padding:3px 9px;border-radius:8px;background:#F0F2F7;color:var(--ink-3)}
+.badge.ok{background:#EAF9F2;color:#1B8F5C}
+.badge.warn{background:#FFF6E8;color:#A86A16}
+.badge.bad{background:#FDECEC;color:#C33B3B}
+.set-note{font-size:11.5px;color:var(--ink-3);line-height:1.6;margin:0 0 10px}
+.set-btns{display:flex;gap:8px}
+.btn-primary{
+  flex:1;height:42px;border-radius:12px;background:linear-gradient(135deg,var(--pink),var(--pink-2));
+  color:#fff;font-size:14px;font-weight:700;box-shadow:0 6px 16px rgba(var(--brand-rgb),.24);
+}
+.btn-ghost{flex:1;height:42px;border-radius:12px;background:#F4F5F9;color:var(--ink-2);font-size:14px;font-weight:700}
+.btn-primary[disabled]{opacity:.55;box-shadow:none}
+
+.theme-row{display:flex;gap:10px}
+.theme-dot{
+  flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;padding:10px 4px;border-radius:13px;
+  background:#F8F9FC;border:1.5px solid transparent;
+}
+.theme-dot i{width:26px;height:26px;border-radius:50%;display:block;box-shadow:0 3px 8px rgba(20,24,40,.14)}
+.theme-dot span{font-size:11px;color:var(--ink-2);font-weight:600}
+.theme-dot.on{border-color:var(--pink);background:var(--pink-soft)}
+.theme-dot.on span{color:var(--pink-deep);font-weight:750}
+
+/* 关于弹层 */.about-row{display:flex;justify-content:space-between;gap:10px;padding:9px 0;border-bottom:1px solid #F5F6FA;font-size:13px}
+.about-row:last-child{border-bottom:0}
+.about-row span{color:var(--ink-3);flex:0 0 auto}
+.about-row b{font-weight:650;text-align:right;word-break:break-all}
+
+/* 通知权限弹窗 */
+.perm-alert{text-align:left}
+.perm-alert h3{font-size:17px;font-weight:750;text-align:center;margin-bottom:6px}
+.perm-alert p{font-size:13px;color:var(--ink-2);line-height:1.65;margin-bottom:10px}
+.perm-alert ol{margin:0 0 12px 18px;font-size:13px;color:var(--ink-2);line-height:1.8}
+
+/* ---------- 通用小件（v1.2 新增） ---------- */
+.tip-line{font-size:11.5px;color:var(--ink-3);line-height:1.6;margin:0 4px 8px}
+.pl-chips{display:flex;flex-wrap:wrap;gap:6px;margin:-3px 0 12px}
+.chip{font-size:11px;font-weight:650;color:var(--ink-2);background:#fff;border-radius:8px;padding:3px 9px;box-shadow:0 2px 8px rgba(28,32,48,.05)}
+.chip.live{color:#1B8F5C;background:#EAF9F2}
+.pl-loading{display:flex;align-items:center;justify-content:center;gap:8px;padding:26px 0;font-size:13px;color:var(--ink-3)}
+.live-dot.off{background:#C9CEDA;animation:none}
+
+/* 段落实时块文字左对齐、站名/车牌行更小 */
+.fl-hero-live .txt{text-align:left}
+.fl-hero-live .txt b{font-size:13px}
+
+/* 选择站点弹层：字号与行高按老年人可读标准放大 */
+.sheet-h b{font-size:17px}
+.sheet-search{height:46px}
+.sheet-search input{font-size:15px}
+.pick-stop{display:flex;align-items:center;min-height:50px;padding:13px 12px 13px 32px;font-size:15px;font-weight:600;color:var(--ink)}
+.pick-stop::before{width:7px;height:7px;left:15px;background:var(--pink-line)}
+.pick-empty{font-size:13px;color:var(--ink-3)}

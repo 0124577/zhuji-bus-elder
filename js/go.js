@@ -5,7 +5,7 @@
   const Data = ZJ.Data;
   const HIST_KEY = 'zjbus.history.v1';
 
-  const G = { from: '', to: '', plans: [], idx: 0, computing: false };
+  const G = { from: '', to: '', plans: [], idx: 0, computing: false, tip: '' };
 
   /* ---------- 历史 ---------- */
   function history() { return ZJ.Store.get(HIST_KEY, []); }
@@ -53,6 +53,7 @@
       from: dir.stops[fromOrder - 1].name,
       to: dir.stops[toOrder - 1].name,
       stops: toOrder - fromOrder,
+      meters: Math.max(0, dir.stops[toOrder - 1].cum - dir.stops[fromOrder - 1].cum),
       minutes: Data.rideMinutes(dir, fromOrder, toOrder),
       key: dir.id + ':' + fromOrder + '-' + toOrder
     };
@@ -61,7 +62,9 @@
     const transfers = Math.max(0, legs.length - 1);
     const ride = legs.reduce((s, l) => s + l.minutes, 0);
     const total = ride + transfers * 5;
-    return { legs: legs, transfers: transfers, total: total, ride: ride, key: legs.map((l) => l.key).join('>') };
+    const meters = legs.reduce((s, l) => s + l.meters, 0);
+    const stops = legs.reduce((s, l) => s + l.stops, 0);
+    return { legs: legs, transfers: transfers, total: total, ride: ride, meters: meters, stops: stops, key: legs.map((l) => l.key).join('>') };
   }
   function dedupe(list) {
     const map = new Map();
@@ -159,10 +162,15 @@
     return dedupe(out);
   }
 
+  function renderTip(msg) {
+    $('planResult').innerHTML =
+      '<div class="plan-empty tip"><svg class="ico"><use href="#i-route"/></svg><b>' + ZJ.esc(msg) + '</b></div>';
+  }
+
   function renderPrompt() {
     $('planResult').innerHTML =
       '<div class="plan-empty"><svg class="ico"><use href="#i-route"/></svg>' +
-      '<b>选好起点和终点</b>自动规划：优先直达，没有直达就给出最少换乘方案<br>全部基于本地静态线路数据计算</div>';
+      '<b>输入起点和终点</b>点上面两个框，选好站就会自动规划</div>';
   }
 
   function renderPlans() {
@@ -174,35 +182,43 @@
     }
     const tabs = G.plans.map((p, i) =>
       '<button class="plan-tab ' + (i === G.idx ? 'on' : '') + '" data-act="plan-idx" data-i="' + i + '">' +
-      '<b>' + (p.transfers === 0 ? '直达方案' : p.transfers + ' 次换乘') + '</b>' +
-      '<span>' + p.total + ' 分钟 · ' + p.legs.reduce((s, l) => s + l.stops, 0) + ' 站</span></button>').join('');
+      '<b>' + (p.transfers === 0 ? '直达' : p.transfers + ' 次换乘') + '</b>' +
+      '<span>' + p.legs.map((l) => l.line).join(' › ') + ' · ' + p.total + ' 分钟</span></button>').join('');
     const p = G.plans[G.idx] || G.plans[0];
     const legs = p.legs.map((l, i) => {
       const last = i === p.legs.length - 1;
       return '<div class="leg">' +
         '<div class="leg-top"><span class="leg-badge">' + ZJ.esc(l.line) + '</span>' +
         '<b>' + ZJ.esc(l.from) + ' → ' + ZJ.esc(l.to) + '</b></div>' +
-        '<div class="leg-meta">' + (i === 0 ? '起点上车' : '换乘上车') + ' · 乘 ' + l.stops + ' 站 · 约 ' + l.minutes + ' 分钟 · 往 ' + ZJ.esc(l.dir.end) + '</div>' +
-        (last ? '<div class="leg-end">到 <b>' + ZJ.esc(l.to) + '</b> 下车，步行前往目的地</div>'
-          : '<div class="leg-end">在 <b>' + ZJ.esc(l.to) + '</b> 同站换乘</div><div class="leg-transfer">换乘预留 5 分钟</div>') +
+        '<div class="leg-meta">乘 ' + l.stops + ' 站 · 约 ' + l.minutes + ' 分钟 · 往 ' + ZJ.esc(l.dir.end) + '</div>' +
+        (last ? '<div class="leg-end">到 <b>' + ZJ.esc(l.to) + '</b> 下车</div>'
+          : '<div class="leg-end">在 <b>' + ZJ.esc(l.to) + '</b> 同站换乘</div>') +
         '</div>';
     }).join('');
+    const meters = p.meters >= 1000 ? (p.meters / 1000).toFixed(1) + ' 公里' : p.meters + ' 米';
     $('planResult').innerHTML =
       '<div class="plan-tabs">' + tabs + '</div>' +
       '<div class="plan-card plan-cardlink" data-act="plan-open">' +
-      '<div class="plan-sum"><div class="big">' + p.total + '<small>分钟</small></div>' +
-      '<div class="meta">预计 ' + ZJ.minHM(ZJ.nowMin() + p.total) + ' 到达「' + ZJ.esc(G.to) + '」<br>乘车 ' + p.ride + ' 分钟' + (p.transfers ? ' · 换乘预留 ' + p.transfers * 5 + ' 分钟' : '') + '</div>' +
-      '<div class="kind">' + (p.transfers === 0 ? '直达' : '换乘 ' + p.transfers + ' 次') + '</div></div>' +
+      '<div class="plan-hero">到目的地还有 <b>' + p.stops + '</b> 站' +
+      '<span class="kind' + (p.transfers ? ' tf' : '') + '">' + (p.transfers === 0 ? '直达' : '换乘 ' + p.transfers + ' 次') + '</span></div>' +
+      '<div class="plan-sub">约 <b>' + p.total + '</b> 分钟 · ' + ZJ.minHM(ZJ.nowMin() + p.total) + ' 到达 · ' + meters + '</div>' +
       legs +
-      '<div class="plan-more">查看分段实时公交与到站提醒<svg class="ico"><use href="#i-right"/></svg></div>' +
-      '<p class="sheet-note" style="margin:10px 0 0">耗时按线路静态里程与平均速度估算，不含步行与等车时间，仅供参考。</p>' +
+      '<div class="plan-more">看实时车辆与到站提醒<svg class="ico"><use href="#i-right"/></svg></div>' +
       '</div>';
   }
 
   function plan() {
     if (!G.from) { ZJ.toast('请先选择起点站'); return; }
     if (!G.to) { ZJ.toast('请先选择终点站'); return; }
-    if (G.from === G.to) { ZJ.toast('起点和终点不能是同一个站点'); return; }
+    /* 同站：清掉上一次结果，避免显示与当前起终点对不上的方案 */
+    if (G.from === G.to) {
+      G.plans = []; G.idx = 0; G.computing = false;
+      renderTip('起点和终点不能是同一个站，请换一个');
+      ZJ.toast('起点和终点不能是同一个站');
+      return;
+    }
+    if (G.computing) return;
+    G.tip = '';
     pushHistory(G.from, G.to);
     renderHistory();
     G.computing = true;
@@ -239,7 +255,8 @@
     render() {
       renderSelectors();
       renderHistory();
-      if (!G.plans.length) renderPrompt();
+      if (!G.from || !G.to) renderPrompt();
+      else if (!G.plans.length) { if (G.tip) renderTip(G.tip); else renderPrompt(); }
       else renderPlans();
     },
     plan: plan
@@ -247,14 +264,16 @@
   ZJ.Go = Go;
 
   /* ---------- 动作 ---------- */
-  ZJ.act('pick-from', () => ZJ.Picker.open('选择起点站', null, (name) => {
-    G.from = name; renderSelectors();
-    if (G.to) plan();
-  }));
-  ZJ.act('pick-to', () => ZJ.Picker.open('选择终点站', null, (name) => {
-    G.to = name; renderSelectors();
-    if (G.from) plan();
-  }));
+  function pickEnd(which, name) {
+    const other = which === 'from' ? G.to : G.from;
+    if (name && name === other) { ZJ.toast('起点和终点不能是同一个站'); return; }
+    if (which === 'from') G.from = name; else G.to = name;
+    G.tip = '';
+    renderSelectors();
+    if (G.from && G.to) plan();
+  }
+  ZJ.act('pick-from', () => ZJ.Picker.open('选择起点站', null, (name) => pickEnd('from', name)));
+  ZJ.act('pick-to', () => ZJ.Picker.open('选择终点站', null, (name) => pickEnd('to', name)));
   ZJ.act('pick-my', (el, e) => { if (e) e.stopPropagation(); openNearby(); });
   ZJ.act('swap-stops', (el, e) => {
     if (e) e.stopPropagation();
@@ -264,10 +283,14 @@
   });
   ZJ.act('plan', () => plan());
   ZJ.act('pick-near', (el) => {
-    G.from = el.dataset.name;
+    const name = el.dataset.name;
+    if (name === G.to) { ZJ.toast('起点和终点不能是同一个站'); return; }
+    G.from = name;
+    G.tip = '';
     ZJ.UI.closeSheet();
     renderSelectors();
     ZJ.toast('起点已设为「' + G.from + '」');
+    if (G.to) plan();
   });
   ZJ.act('plan-idx', (el, e) => { if (e) e.stopPropagation(); G.idx = +el.dataset.i; renderPlans(); });
   ZJ.act('plan-open', (el, e) => {
