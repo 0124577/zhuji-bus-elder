@@ -44,14 +44,16 @@
   ZJ.Geo = Geo;
 
   /* ================= Tab ================= */
+  const TABS = { home: 1, go: 1, settings: 1 };
   let tab = 'home';
   function setTab(name) {
-    if (name !== 'home' && name !== 'go') return;
+    if (!TABS[name]) return;
     tab = name;
     document.querySelectorAll('.page').forEach((p) => p.classList.toggle('on', p.id === 'page-' + name));
     document.querySelectorAll('.tab').forEach((b) => b.classList.toggle('on', b.dataset.tab === name));
     window.scrollTo(0, 0);
     if (name === 'go' && ZJ.Go) ZJ.Go.render();
+    if (name === 'settings' && ZJ.Settings) ZJ.Settings.render();
   }
   ZJ.setTab = setTab;
 
@@ -62,12 +64,18 @@
     setTab('home');
     if (ZJ.Home) ZJ.Home.renderAll();
     if (ZJ.Go) ZJ.Go.render();
+    if (ZJ.Settings) ZJ.Settings.render();
 
     const bar = $('tabbar');
     bar.addEventListener('click', (e) => {
       const b = e.target.closest('.tab');
       if (b) setTab(b.dataset.tab);
     });
+
+    /* 首次触摸解锁音频（移动端 WebAudio 需要用户手势） */
+    const unlock = () => { ZJ.Sound.unlock(); document.removeEventListener('touchend', unlock); document.removeEventListener('click', unlock); };
+    document.addEventListener('touchend', unlock, { once: true });
+    document.addEventListener('click', unlock, { once: true });
 
     /* 到站提醒：只在可见时轮询 */
     ZJ.Reminder.start();
