@@ -1,16 +1,16 @@
-/* 出行：起点/终点直接查（站名搜索），结果同时给出 直达 · 换乘 · 附近可达站点 */
+/* 出行：起点/终点站名直查，结果一个列表，卡片直接写「到目的地还有几站」 */
 (function () {
   const ZJ = window.ZJ;
   const $ = ZJ.$;
   const Data = ZJ.Data;
   const HIST_KEY = 'zjbus.history.v1';
-  const NEAR_RADIUS = 1000;
 
   const G = {
     from: '', to: '',
-    direct: [], transfer: [], near: [],
+    plans: [],
     live: new Map(), /* dirId -> { list, err, at } */
-    loading: false
+    loading: false,
+    tip: '' /* 输入有误时的提示（如起终点相同） */
   };
 
   /* ---------- 历史 ---------- */
@@ -171,208 +171,219 @@
     return dedupe(out, limit);
   }
 
-  /* ---------- 附近可达站点（步行 1 公里内） ---------- */
-  function nearOf(centerName, otherName) {
-    const s = Data.stationMap.get(centerName);
-    if (!s || !s.lat || !s.lng) return [];
-    const raw = Data.nearby(s.lat, s.lng, 40) || [];
-    const out = [];
-    raw.forEach((x) => {
-      if (x.station.name === centerName) return;
-      if (x.dist > NEAR_RADIUS) return;
-      if (out.length >= 4) return;
-      out.push({
-        name: x.station.name,
-        dist: x.dist,
-        direct: otherName ? findDirect(x.station.name, otherName, 1).length > 0 : false
-      });
-    });
-    return out;
-  }
-
-  function buildNear() {
-    const list = [];
-    const a = nearOf(G.from, G.to);
-    const b = nearOf(G.to, G.from);
-    if (a.length) list.push({ end: 'from', label: '起点「' + G.from + '」附近', items: a });
-    if (b.length) list.push({ end: 'to', label: '终点「' + G.to + '」附近', items: b });
-    return list;
-  }
-
-  /* ---------- 结果渲染 ---------- */
+  /* ---------- 结果渲染（一个列表，卡片先写「到目的地还有几站」） ---------- */
   function promptBox() {
     return '<div class="plan-empty"><svg class="ico"><use href="#i-route"/></svg>' +
-      '<b>输入起点和终点</b>点上面的输入框，输入站名（如「火车站」）<br>马上给出直达车、换乘车和附近站点</div>';
+      '<b>输入起点和终点</b>点上面两个框，输入站名（如「火车站」）</div>';
   }
 
   function liveOf(leg) {
     const d = G.live.get(leg.dir.id);
-    if (!d) return { txt: '正在获取实时车辆…', cls: '' };
+    if (!d) return { txt: '正在获取车辆…', cls: '' };
     if (d.err) return { txt: '实时不可用 · 按静态估算', cls: 'err' };
-    if (!d.list.length) return { txt: '暂无车辆 · 按静态估算', cls: '' };
+    if (!d.list.length) return { txt: '暂无车辆 · 按静态估算', cls: 'off' };
     const arr = ZJ.RT.arrivalsTo(leg.dir, d.list, leg.fromOrder);
-    if (!arr.length) return { txt: '车辆已过站 · 等下一班', cls: '' };
+    if (!arr.length) return { txt: '车辆已过站 · 等下一班', cls: 'off' };
     const b = arr[0];
-    const remain = b.atStation ? 0 : b.remain;
-    return {
-      txt: (b.atStation ? '车已到站' : '<b>还有 ' + remain + ' 站</b>') + ' · 约 ' + b.minutes + ' 分钟' + (b.v.plate ? ' · ' + ZJ.esc(b.v.plate) : ''),
-      cls: ''
-    };
+    if (b.atStation) return { txt: '<b>车已到站</b> · 请到站台等', cls: '' };
+    return { txt: '<b>车还有 ' + b.remain + ' 站</b> · 约 ' + b.minutes + ' 分钟', cls: '' };
   }
 
-  function card(p, kind, i) {
+  function distTxt(m) {
+    return m >= 1000 ? (m / 1000).toFixed(1) + ' 公里' : m + ' 米';
+  }
+
+  function card(p, i) {
     const live = liveOf(p.legs[0]);
     const lines = p.legs.map((l, k) =>
       (k ? '<span class="res-arrow">›</span>' : '') +
       '<span class="res-badge"><svg class="ico"><use href="#i-bus"/></svg>' + ZJ.esc(l.line) + '</span>').join('');
     const arrive = ZJ.minHM(ZJ.nowMin() + p.total);
-    return '<button class="res-card" data-act="plan-open" data-kind="' + kind + '" data-i="' + i + '">' +
-      '<div class="res-top">' +
-      '<div class="res-min">' + p.total + '<small>分钟</small></div>' +
-      '<div class="res-meta">约 <b>' + arrive + '</b> 到达<br>' + p.stops + ' 站 · ' + (p.meters >= 1000 ? (p.meters / 1000).toFixed(1) + ' 公里' : p.meters + ' 米') + '</div>' +
-      '<span class="res-kind">' + (p.transfers === 0 ? '直达' : '换乘 ' + p.transfers + ' 次') + '</span>' +
-      '</div>' +
+    return '<button class="res-card" data-act="plan-open" data-i="' + i + '">' +
+      '<div class="res-stops">到目的地还有 <b>' + p.stops + '</b> 站' +
+      '<span class="res-kind' + (p.transfers ? ' tf' : '') + '">' +
+      (p.transfers === 0 ? '直达' : '换乘 ' + p.transfers + ' 次') + '</span></div>' +
+      '<div class="res-sub">约 <b>' + p.total + '</b> 分钟 · ' + arrive + ' 到达 · ' + distTxt(p.meters) + '</div>' +
       '<div class="res-lines">' + lines + '</div>' +
-      '<div class="res-live ' + live.cls + '"><svg class="ico"><use href="#i-bus"/></svg>' +
-      '<span>' + (p.legs.length > 1 ? ZJ.esc(p.legs[0].line) + ' ' : '') + live.txt + '</span>' +
+      '<div class="res-live ' + live.cls + '">' +
+      (p.legs.length > 1 ? ZJ.esc(p.legs[0].line) + ' · ' : '') + live.txt +
       '<span class="res-go">详情<svg class="ico"><use href="#i-right"/></svg></span></div>' +
       '</button>';
   }
 
-  function nearSec(groups) {
-    if (!groups.length) return '';
-    const body = groups.map((g) =>
-      '<div class="near-grp"><div class="lab"><svg class="ico"><use href="#i-walk"/></svg>' +
-      ZJ.esc(g.label) + ' · 步行 1 公里内</div>' +
-      g.items.map((x) =>
-        '<button class="near-item" data-act="near-set" data-end="' + g.end + '" data-name="' + ZJ.esc(x.name) + '">' +
-        '<b>' + ZJ.esc(x.name) + '</b>' +
-        '<span class="d">' + ZJ.distTxt(x.dist) + '</span>' +
-        (x.direct ? '<span class="ok">有直达</span>' : '') +
-        '<span class="pick">设为' + (g.end === 'from' ? '起点' : '终点') + '</span>' +
-        '</button>').join('') +
-      '</div>').join('');
-    return '<section class="res-sec"><div class="res-h"><b>附近可达站点</b><span>走几步就能坐车</span></div>' +
-      '<p class="tip-line">换乘不方便时，可以改用附近站点试试</p>' + body + '</section>';
+  /* 任一方案第一段取车失败 → 顶部给降级提示与重试（卡片内也有「实时不可用」） */
+  function liveFailed() {
+    let bad = false;
+    G.plans.forEach((p) => {
+      const d = G.live.get(p.legs[0].dir.id);
+      if (d && d.err) bad = true;
+    });
+    return bad;
   }
 
   function renderResult() {
     if (!G.from || !G.to) { $('planResult').innerHTML = promptBox(); return; }
-    if (G.loading) {
-      $('planResult').innerHTML = '<div class="plan-empty"><b>正在查询…</b>直达优先，其次换乘，最后给附近站点</div>';
+    if (G.tip) {
+      $('planResult').innerHTML = '<div class="plan-empty tip"><svg class="ico"><use href="#i-route"/></svg>' +
+        '<b>' + ZJ.esc(G.tip) + '</b></div>';
       return;
     }
-    G.near = buildNear();
-    let html = '';
-    if (G.direct.length) {
-      html += '<section class="res-sec"><div class="res-h"><b>直达方案</b><span>' + G.direct.length + ' 个 · 不用换车</span></div>' +
-        G.direct.map((p, i) => card(p, 'direct', i)).join('') + '</section>';
+    if (G.loading) {
+      $('planResult').innerHTML = '<div class="plan-empty"><b>正在查询…</b>马上就好</div>';
+      return;
     }
-    if (G.transfer.length) {
-      html += '<section class="res-sec"><div class="res-h"><b>换乘方案</b><span>' + G.transfer.length + ' 个 · 时间从短到长</span></div>' +
-        G.transfer.map((p, i) => card(p, 'transfer', i)).join('') + '</section>';
+    if (!G.plans.length) {
+      $('planResult').innerHTML = '<div class="plan-empty"><svg class="ico"><use href="#i-route"/></svg>' +
+        '<b>没有找到可坐的车</b>「' + ZJ.esc(G.from) + '」到「' + ZJ.esc(G.to) + '」没有直达或换乘线路<br>换个站名试试</div>';
+      return;
     }
-    if (!G.direct.length && !G.transfer.length) {
-      html += '<div class="plan-empty"><svg class="ico"><use href="#i-route"/></svg>' +
-        '<b>没有找到直通车</b>「' + ZJ.esc(G.from) + '」到「' + ZJ.esc(G.to) + '」暂时没有直达或换乘线路<br>看看下面的附近站点吧</div>';
-    }
-    html += nearSec(G.near);
-    $('planResult').innerHTML = html;
+    $('planResult').innerHTML =
+      (liveFailed()
+        ? '<div class="degrade-banner"><svg class="ico"><use href="#i-refresh"/></svg>' +
+          '<div><b>实时车辆暂不可用，已按静态数据估算</b><span>站数、耗时与换乘仍可正常查看，恢复后自动更新</span></div>' +
+          '<button data-act="go-refresh">重试</button></div>'
+        : '') +
+      '<div class="res-count">共 ' + G.plans.length + ' 个方案 · 换乘少、时间短的在前</div>' +
+      G.plans.map((p, i) => card(p, i)).join('');
   }
 
   /* ---------- 实时车辆（只查每个方案的第一段） ---------- */
-  async function loadLive() {
-    const legs = [];
-    const seen = new Set();
-    G.direct.concat(G.transfer).forEach((p) => {
-      const l = p.legs[0];
-      if (!seen.has(l.dir.id)) { seen.add(l.dir.id); legs.push(l); }
-    });
-    const todo = legs.slice(0, 6);
-    if (!todo.length) return;
-    await ZJ.batch(todo, 3, async (leg) => {
-      if (G.live.has(leg.dir.id)) return;
-      try {
-        const data = await ZJ.Api.vehicles(leg.dir.id);
-        G.live.set(leg.dir.id, { list: ZJ.RT.normalize(leg.dir, data), err: '', at: Date.now() });
-      } catch (e) {
-        G.live.set(leg.dir.id, { list: [], err: (e && e.message) || '网络异常', at: Date.now() });
-      }
-    });
-    if ($('page-go') && $('page-go').classList.contains('on')) renderResult();
+  let busy = false; /* 同一时刻只跑一轮实时请求，避免快速切 Tab 时请求叠加 */
+  async function loadLive(force) {
+    if (busy) return;
+    busy = true;
+    try {
+      const legs = [];
+      const seen = new Set();
+      G.plans.forEach((p) => {
+        const l = p.legs[0];
+        if (!seen.has(l.dir.id)) { seen.add(l.dir.id); legs.push(l); }
+      });
+      const todo = legs.slice(0, 6);
+      if (!todo.length) return;
+      await ZJ.batch(todo, 3, async (leg) => {
+        if (!force && G.live.has(leg.dir.id)) return;
+        try {
+          const data = await ZJ.Api.vehicles(leg.dir.id);
+          G.live.set(leg.dir.id, { list: ZJ.RT.normalize(leg.dir, data), err: '', at: Date.now() });
+        } catch (e) {
+          G.live.set(leg.dir.id, { list: [], err: (e && e.message) || '网络异常', at: Date.now() });
+        }
+      });
+    } finally {
+      busy = false;
+      if ($('page-go') && $('page-go').classList.contains('on')) renderResult();
+    }
   }
 
   /* ---------- 查询 ---------- */
   function plan() {
     if (!G.from) { ZJ.toast('请先输入起点站'); return; }
     if (!G.to) { ZJ.toast('请先输入终点站'); return; }
-    if (G.from === G.to) { ZJ.toast('起点和终点不能是同一个站'); return; }
+    /* 同站：清掉上一次的结果，避免显示与当前起终点不符的方案 */
+    if (G.from === G.to) {
+      G.plans = [];
+      G.live = new Map();
+      G.tip = '起点和终点不能是同一个站，请换一个站';
+      G.loading = false;
+      renderResult();
+      ZJ.toast('起点和终点不能是同一个站');
+      return;
+    }
+    if (G.loading) return;
+    G.tip = '';
     pushHistory(G.from, G.to);
     renderHistory();
     G.loading = true;
     G.live = new Map();
     renderResult();
     setTimeout(() => {
-      G.direct = findDirect(G.from, G.to, 3);
-      G.transfer = G.direct.length ? [] : findTransfer(G.from, G.to, endReach(G.to), 3);
-      if (!G.direct.length && !G.transfer.length) {
-        G.transfer = findTwoTransfer(G.from, G.to, endReach(G.to), 3);
+      let list = findDirect(G.from, G.to, 3);
+      if (!list.length) {
+        list = findTransfer(G.from, G.to, endReach(G.to), 3);
+        if (!list.length) list = findTwoTransfer(G.from, G.to, endReach(G.to), 3);
       }
+      G.plans = list;
       G.loading = false;
       renderResult();
       loadLive();
-      const n = G.direct.length + G.transfer.length;
-      if (n) ZJ.toast('找到 ' + n + ' 个方案');
-      else ZJ.toast('没有直通车，看看附近站点');
+      if (!list.length) ZJ.toast('没有找到可坐的车，换个站名试试');
     }, 30);
   }
+
+  let pollTimer = null;
+  function pollMs() {
+    const s = Number(ZJ.Prefs.get('poll')) || 15;
+    return Math.max(5, Math.min(60, s)) * 1000;
+  }
+  function startPoll() {
+    if (pollTimer) clearInterval(pollTimer);
+    pollTimer = setInterval(() => {
+      const on = $('page-go') && $('page-go').classList.contains('on');
+      const fullOpen = document.querySelector('.fullpage.on');
+      if (!on || fullOpen || document.visibilityState !== 'visible') return;
+      if (G.from && G.to && G.plans.length && !G.loading) loadLive(true);
+    }, pollMs());
+  }
+  startPoll();
 
   const Go = {
     render() {
       renderEnds();
       renderHistory();
       renderResult();
-      if (G.from && G.to && (G.direct.length || G.transfer.length)) loadLive();
+      if (G.from && G.to && G.plans.length) loadLive(true);
     },
     state() { return G; },
-    setEnds(from, to) { G.from = from; G.to = to; }
+    setEnds(from, to) { G.from = from; G.to = to; G.tip = ''; renderEnds(); },
+    /* 供设置页清缓存后调用：清空本页显示 */
+    reset() {
+      G.plans = []; G.live = new Map(); G.tip = ''; G.loading = false;
+      G.from = ''; G.to = '';
+      renderEnds(); renderResult();
+    }
   };
   ZJ.Go = Go;
 
+  /* 选站：与另一端同名时不覆盖，避免出现「起点=终点」却显示旧方案 */
+  function pickEnd(which, name) {
+    const other = which === 'from' ? G.to : G.from;
+    if (name && name === other) {
+      ZJ.toast('起点和终点不能是同一个站');
+      return false;
+    }
+    if (which === 'from') G.from = name; else G.to = name;
+    G.tip = '';
+    renderEnds();
+    if (G.from && G.to) plan();
+    return true;
+  }
+
   /* ---------- 动作 ---------- */
-  ZJ.act('pick-from', () => ZJ.Picker.open('输入起点站', null, (name) => {
-    G.from = name; renderEnds();
-    if (G.to && G.to !== G.from) plan();
-  }));
-  ZJ.act('pick-to', () => ZJ.Picker.open('输入终点站', null, (name) => {
-    G.to = name; renderEnds();
-    if (G.from && G.from !== G.to) plan();
-  }));
+  ZJ.act('pick-from', () => ZJ.Picker.open('输入起点站', null, (name) => pickEnd('from', name)));
+  ZJ.act('pick-to', () => ZJ.Picker.open('输入终点站', null, (name) => pickEnd('to', name)));
   ZJ.act('pick-my', (el, e) => {
     if (e) e.stopPropagation();
-    ZJ.Picker.openNearby('我的位置附近', (name) => {
-      G.from = name; renderEnds();
-      if (G.to && G.to !== G.from) plan();
-    });
+    ZJ.Picker.openNearby('我的位置附近', (name) => pickEnd('from', name));
   });
   ZJ.act('swap-stops', (el, e) => {
     if (e) e.stopPropagation();
+    if (!G.from && !G.to) { ZJ.toast('先选起点和终点'); return; }
     const t = G.from; G.from = G.to; G.to = t;
+    G.tip = '';
     renderEnds();
-    if (G.from && G.to) plan();
+    if (G.from && G.to) plan(); else renderResult();
   });
   ZJ.act('plan', () => plan());
-  ZJ.act('near-set', (el) => {
-    const name = el.dataset.name;
-    if (el.dataset.end === 'from') G.from = name; else G.to = name;
-    renderEnds();
-    ZJ.toast((el.dataset.end === 'from' ? '起点' : '终点') + '已改为「' + name + '」');
-    plan();
+  ZJ.act('go-refresh', () => {
+    ZJ.Api.resetHealth();
+    G.live = new Map();
+    renderResult();
+    loadLive(true);
+    ZJ.toast('正在重新获取实时车辆…');
   });
   ZJ.act('plan-open', (el) => {
-    const kind = el.dataset.kind;
-    const i = Number(el.dataset.i) || 0;
-    const p = (kind === 'direct' ? G.direct : G.transfer)[i];
+    const p = G.plans[Number(el.dataset.i) || 0];
     if (!p) { ZJ.toast('方案已失效，请重新查询'); return; }
     if (!ZJ.Plan || !ZJ.Plan.open) { ZJ.toast('方案详情暂不可用'); return; }
     ZJ.Plan.open(p, G.from, G.to);

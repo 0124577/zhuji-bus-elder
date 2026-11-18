@@ -55,9 +55,7 @@
       '<span>' + line2 + '</span></div></div>' +
       '<div class="pl-chips">' +
       '<span class="chip">' + kind + '</span>' +
-      '<span class="chip">' + p.stops + ' 站</span>' +
       '<span class="chip">' + (p.meters >= 1000 ? (p.meters / 1000).toFixed(1) + ' 公里' : p.meters + ' 米') + '</span>' +
-      '<span class="chip">' + p.legs.length + ' 段</span>' +
       (hasLive ? '<span class="chip live">实时</span>' : '') +
       '</div>' +
       bannerFor(anyErr);

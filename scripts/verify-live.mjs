@@ -91,19 +91,23 @@ ok('线路详情打开', !!lineState.open && lineState.vtRows > 3, `${lineName} 
 ok('横向时间轴可左右滚动', lineState.hScroll === 'auto' && lineState.scrollable, `${lineState.tlNodes} 节点`);
 ok('首页已无附近站点栏目', lineState.nearby === 0);
 
-// 确认线上已部署 v1.2.0（流程详情 / 设置 / 主题）
+// 确认线上已部署 v1.3.0（单列表结果 / 流程详情 / 设置 / 主题）
 const deploy = await page.evaluate(async () => {
   const txt = async (u) => (await fetch(u, { cache: 'no-store' })).text();
-  const [plan, settings, css] = await Promise.all([txt('js/plan.js'), txt('js/settings.js'), txt('css/theme.css')]);
+  const [plan, go, settings, css] = await Promise.all([
+    txt('js/plan.js'), txt('js/go.js'), txt('js/settings.js'), txt('css/theme.css')
+  ]);
   return {
     hero: plan.indexOf('到目的地还有') > -1,
     flow: plan.indexOf('fl-seg') > -1,
+    single: go.indexOf('res-stops') > -1 && go.indexOf('near-set') === -1,
     settings: settings.length > 500,
     theme: css.indexOf('data-theme="sky"') > -1
   };
 });
 ok('线上已部署「到目的地还有 N 站」', deploy.hero);
 ok('线上已部署换乘流程详情', deploy.flow);
+ok('线上出行结果为单列表（无附近站点区块）', deploy.single);
 ok('线上已部署设置页脚本', deploy.settings);
 ok('线上已部署多套主题', deploy.theme);
 

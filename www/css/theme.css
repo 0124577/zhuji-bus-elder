@@ -1,5 +1,5 @@
 /* ==================================================================
-   v1.2.0 —— 主题色 / 出行结果 / 方案流程 / 设置页
+   v1.3.0 —— 主题色 / 出行结果 / 方案流程 / 设置页
    与 app.css 分离：本文件只做「主题切换 + 新组件」，便于单独维护
    ================================================================== */
 
@@ -23,37 +23,43 @@
   --shadow-pink:0 10px 24px rgba(240,128,25,.24);
 }
 
-/* ---------- 出行页：结果分组 ---------- */
-.res-sec{margin-bottom:16px}
-.res-h{display:flex;align-items:baseline;justify-content:space-between;gap:8px;padding:0 4px 8px}
-.res-h b{font-size:15.5px;font-weight:750;letter-spacing:.2px}
-.res-h span{font-size:11.5px;color:var(--ink-3)}
+/* ---------- 出行页：结果列表（一个列表，卡片先写「到目的地还有几站」） ---------- */
+.res-count{font-size:11.5px;color:var(--ink-3);padding:0 4px 8px}
+/* 输入有误（起终点相同）时的提示，与普通空态区分开 */
+.plan-empty.tip{background:#FFF6E8;box-shadow:none;border:1px solid #FFE2BE}
+.plan-empty.tip b{color:#8A5210}
+.plan-empty.tip .ico{color:#E9B36A}
 .res-card{
   display:block;width:100%;text-align:left;background:#fff;border-radius:16px;
   box-shadow:var(--shadow);padding:13px 14px;margin-bottom:9px;border:1.5px solid transparent;
 }
 .res-card:active{transform:scale(.99);background:#FDFDFE}
-.res-top{display:flex;align-items:baseline;gap:9px}
-.res-min{font-size:28px;font-weight:800;color:var(--pink);letter-spacing:-1.2px;line-height:1}
-.res-min small{font-size:12px;font-weight:700;margin-left:2px;letter-spacing:0}
-.res-meta{flex:1;min-width:0;text-align:right;font-size:11.5px;color:var(--ink-3);line-height:1.45}
-.res-meta b{color:var(--ink-2);font-weight:650}
-.res-lines{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:10px}
+.res-stops{
+  display:flex;align-items:center;gap:8px;font-size:14px;font-weight:700;color:var(--ink-2);
+  line-height:1.2;
+}
+.res-stops b{font-size:22px;font-weight:800;color:var(--pink);letter-spacing:-1px;margin:0 1px}
+.res-sub{font-size:12px;color:var(--ink-3);margin-top:5px}
+.res-sub b{color:var(--ink-2);font-weight:700}
+.res-lines{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:9px}
 .res-badge{
-  display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:750;
+  display:inline-flex;align-items:center;gap:4px;font-size:12.5px;font-weight:750;
   color:var(--pink-deep);background:var(--pink-soft);border-radius:9px;padding:3px 9px;
 }
 .res-badge .ico{width:13px;height:13px}
 .res-arrow{font-size:11px;color:#C3C9D6;font-weight:700}
 .res-live{
   display:flex;align-items:center;gap:6px;margin-top:9px;background:#F7F8FB;border-radius:10px;
-  padding:7px 10px;font-size:11.5px;color:var(--ink-2);line-height:1.4;
+  padding:8px 10px;font-size:12px;color:var(--ink-2);line-height:1.4;
 }
 .res-live b{color:var(--pink-t4);font-weight:800}
-.res-live .ico{width:14px;height:14px;color:var(--ink-3)}
+.res-live.off{color:var(--ink-3)}
+.res-live.err{background:#FFF6E8;color:#8A5210}
+.res-live.err b{color:#8A5210}
 .res-go{margin-left:auto;color:var(--ink-3);font-size:11px;display:flex;align-items:center;gap:1px;flex:0 0 auto}
 .res-go .ico{width:13px;height:13px}
-.res-kind{font-size:10.5px;font-weight:750;padding:2px 7px;border-radius:7px;background:#EAF9F2;color:#1B8F5C;margin-left:auto;flex:0 0 auto}
+.res-kind{font-size:11px;font-weight:750;padding:2px 8px;border-radius:7px;background:#EAF9F2;color:#1B8F5C;margin-left:auto;flex:0 0 auto}
+.res-kind.tf{background:var(--pink-soft);color:var(--pink-deep)}
 
 /* 附近可达站点 */
 .near-grp{margin-bottom:11px}

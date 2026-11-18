@@ -378,36 +378,33 @@ await pickStation('pick-to', '草塔停车场');
 await sleep(1600);
 ok('终点已填入', (await txt('#toName')) === '草塔停车场', await txt('#toName'));
 
-/* ---------------- 出行结果：直达 / 换乘 / 附近可达 ---------------- */
-section('出行结果（直达 · 换乘 · 附近可达站点）');
+/* ---------------- 出行结果：一个列表 + 到目的地还有几站 ---------------- */
+section('出行结果（一个列表 · 到目的地还有几站）');
 const res = await page.evaluate(() => ({
-  secs: [...document.querySelectorAll('.res-h b')].map((e) => e.textContent),
+  secHeads: document.querySelectorAll('.res-h').length,
+  countLine: (document.querySelector('.res-count') || { innerText: '' }).innerText.replace(/\s+/g, ' '),
   cards: document.querySelectorAll('.res-card').length,
   badges: document.querySelectorAll('.res-badge').length,
   near: document.querySelectorAll('.near-item').length,
-  nearSet: document.querySelectorAll('[data-act="near-set"]').length,
   first: (document.querySelector('.res-card') || { innerText: '' }).innerText.replace(/\s+/g, ' '),
+  stopsB: (document.querySelector('.res-card .res-stops b') || { textContent: '' }).textContent,
   live: (document.querySelector('.res-live') || { innerText: '' }).innerText.replace(/\s+/g, ' '),
-  nearDist: (document.querySelector('.near-item .d') || { textContent: '' }).textContent
+  openable: document.querySelectorAll('.res-card[data-act="plan-open"]').length
 }));
-ok('结果含「直达方案」分区', res.secs.indexOf('直达方案') > -1, res.secs.join(' | '));
-ok('结果同时含「附近可达站点」分区', res.secs.indexOf('附近可达站点') > -1, res.secs.join(' | '));
-ok('每个方案显示总分钟', /\d+\s*分钟/.test(res.first), res.first.slice(0, 60));
-ok('方案显示线路胶囊', res.badges > 0, String(res.badges));
-ok('方案显示实时或静态车辆一行', /(还有 \d+ 站|暂无车辆|实时不可用|车辆已过站|正在获取)/.test(res.live), res.live);
-ok('附近站点显示步行距离', /(米|公里)/.test(res.nearDist), res.nearDist);
-ok('附近站点可一键设为起终点', res.nearSet > 0, String(res.nearSet));
+ok('结果为一个列表，不再分直达/换乘/附近三块', res.secHeads === 0, String(res.secHeads));
+ok('列表顶部标注方案数量', /^共 \d+ 个方案/.test(res.countLine), res.countLine);
+ok('卡片突出「到目的地还有 N 站」', /到目的地还有\s*\d+\s*站/.test(res.first), res.first.slice(0, 40));
+ok('剩余站数字单独放大', /^\d+$/.test(res.stopsB.trim()), res.stopsB);
+ok('卡片显示总分钟与到达时间', /约\s*\d+\s*分钟/.test(res.first) && /到达/.test(res.first), res.first.slice(0, 60));
+ok('卡片显示线路胶囊', res.badges > 0, String(res.badges));
+ok('卡片标注直达或换乘次数', /(直达|换乘\s*\d+\s*次)/.test(res.first), res.first.slice(0, 40));
+ok('卡片显示实时或静态车辆一行', /(车\s*还有\s*\d+\s*站|车已到站|暂无车辆|实时不可用|车辆已过站|正在获取)/.test(res.live), res.live);
+ok('每张卡片都可点进详情', res.openable === res.cards && res.cards > 0, res.openable + '/' + res.cards);
+ok('已去掉附近可达站点区块', res.near === 0, String(res.near));
 ok('历史记录已保存', await page.evaluate(() => (ZJ.Store.get('zjbus.history.v1', []) || []).length === 1));
 ok('最近查询列表已渲染', (await cnt('.hist-row')) === 1, String(await cnt('.hist-row')));
 
-/* 附近站点切换端点 */
-const nearBefore = await txt('#fromName');
-await page.evaluate(() => document.querySelector('[data-end="from"][data-act="near-set"]').click());
-await sleep(1200);
-const nearAfter = await txt('#fromName');
-ok('点附近站点可切换起点', nearAfter !== nearBefore && nearAfter.length > 0, nearBefore + ' → ' + nearAfter);
-
-/* 无直达的站点对：给出换乘方案或空态 */
+/* 无直达的站点对：列表改为换乘方案或空态 */
 const noDirect = await page.evaluate(() => {
   const st = ZJ.Data.stations.filter((s) => s.entries.length <= 2);
   for (let i = 0; i < st.length; i++) {
@@ -424,22 +421,95 @@ if (noDirect) {
   await page.evaluate((p) => { ZJ.Go.setEnds(p[0], p[1]); document.querySelector('[data-act="plan"]').click(); }, noDirect);
   await sleep(1500);
   const nd = await page.evaluate(() => ({
-    secs: [...document.querySelectorAll('.res-h b')].map((e) => e.textContent),
     cards: document.querySelectorAll('.res-card').length,
+    kindTf: document.querySelectorAll('.res-kind.tf').length,
     txt: document.querySelector('#planResult').innerText.replace(/\s+/g, ' '),
     near: document.querySelectorAll('.near-item').length
   }));
-  ok('无直达时给出换乘方案或空态提示', nd.secs.indexOf('换乘方案') > -1 || nd.txt.indexOf('没有找到直通车') > -1, nd.secs.join('|') + ' / ' + nd.txt.slice(0, 40));
-  ok('无直达时仍给出附近可达站点', nd.near > 0, String(nd.near));
+  ok('无直达时给出换乘方案或空态提示', nd.cards > 0 ? nd.kindTf > 0 : /没有找到可坐的车/.test(nd.txt), nd.cards + ' 卡 / ' + nd.txt.slice(0, 40));
+  ok('无直达时也不出现附近站点区块', nd.near === 0, String(nd.near));
 } else {
   ok('无直达时给出换乘方案或空态提示', true, '未找到无直达站点对，跳过');
-  ok('无直达时仍给出附近可达站点', true, '跳过');
+  ok('无直达时也不出现附近站点区块', true, '跳过');
 }
 
 /* 恢复到直达样例，准备进详情 */
 await page.evaluate(() => { ZJ.Go.setEnds('火车站', '草塔停车场'); document.querySelector('[data-act="plan"]').click(); });
 await sleep(1500);
 ok('可重新查询回直达方案', (await cnt('.res-card')) > 0, String(await cnt('.res-card')));
+
+/* ---------------- 出行页交互与降级（bug 回归） ---------------- */
+section('出行页交互与降级（起终点同站 · 实时失效兜底）');
+
+/* 终点选成与起点同一个站：应被拦下，终点保持原值 */
+await page.evaluate(() => document.querySelector('[data-act="pick-to"]').click());
+await sleep(380);
+await page.type('#pkQ', '火车站');
+await sleep(520);
+await page.evaluate(() => {
+  const el = [...document.querySelectorAll('#pkList .pick-stop')].find((x) => x.textContent.trim().indexOf('火车站') === 0);
+  if (el) el.click();
+});
+await sleep(900);
+ok('终点选成与起点相同时被拦下', (await txt('#toName')) === '草塔停车场', await txt('#toName'));
+ok('拦下后原方案仍在、数字不错位', (await cnt('.res-card')) > 0 && /草塔停车场/.test(await txt('#toName')));
+
+/* 强行让起终点相同：清空结果并给出提示，不残留上一对站点的方案 */
+await page.evaluate(() => { ZJ.Go.setEnds('火车站', '火车站'); document.querySelector('[data-act="plan"]').click(); });
+await sleep(700);
+const sameState = await page.evaluate(() => ({
+  cards: document.querySelectorAll('.res-card').length,
+  tip: (document.getElementById('planResult').innerText || '').replace(/\s+/g, ' ')
+}));
+ok('起终点相同时清空旧方案', sameState.cards === 0, String(sameState.cards));
+ok('起终点相同时给出明确提示', /不能是同一个站/.test(sameState.tip), sameState.tip.slice(0, 40));
+
+/* 实时接口失效：出行页出现降级提示条，卡片标注「实时不可用」 */
+await page.evaluate(() => {
+  window.__vehOrig2 = ZJ.Api.vehicles;
+  ZJ.Api.vehicles = async () => { throw new Error('网络异常，请检查网络'); };
+  ZJ.Go.setEnds('火车站', '草塔停车场');
+  document.querySelector('[data-act="plan"]').click();
+});
+await sleep(1800);
+const deg = await page.evaluate(() => ({
+  banner: document.querySelectorAll('#page-go .degrade-banner').length,
+  bannerTxt: (document.querySelector('#page-go .degrade-banner') || { innerText: '' }).innerText.replace(/\s+/g, ' '),
+  errCards: document.querySelectorAll('.res-live.err').length,
+  cards: document.querySelectorAll('.res-card').length,
+  retry: !!document.querySelector('[data-act="go-refresh"]')
+}));
+ok('实时失效时出行页显示降级提示条', deg.banner === 1, String(deg.banner));
+ok('降级提示条说明「已按静态数据估算」', /静态数据估算/.test(deg.bannerTxt), deg.bannerTxt.slice(0, 50));
+ok('降级时卡片标注「实时不可用」', deg.errCards === deg.cards && deg.cards > 0, deg.errCards + '/' + deg.cards);
+ok('降级提示条提供重试按钮', deg.retry);
+
+/* 恢复接口并点重试：提示条消失，卡片回到正常态 */
+await page.evaluate(() => { ZJ.Api.vehicles = window.__vehOrig2; ZJ.Api.resetHealth(); });
+await sleep(150);
+await page.evaluate(() => { const b = document.querySelector('[data-act="go-refresh"]'); if (b) b.click(); });
+await sleep(1800);
+const deg2 = await page.evaluate(() => ({
+  banner: document.querySelectorAll('#page-go .degrade-banner').length,
+  cards: document.querySelectorAll('.res-card').length,
+  errCards: document.querySelectorAll('.res-live.err').length
+}));
+ok('重试后降级提示条消失', deg2.banner === 0, String(deg2.banner));
+ok('重试后卡片仍完整可用', deg2.cards > 0, String(deg2.cards));
+
+/* 切走再切回：出行页会重新拉一次实时车辆 */
+const refetch = await page.evaluate(async () => {
+  let n = 0;
+  const orig = ZJ.Api.vehicles;
+  ZJ.Api.vehicles = async (id) => { n++; return orig(id); };
+  ZJ.setTab('home');
+  await new Promise((r) => setTimeout(r, 300));
+  ZJ.setTab('go');
+  await new Promise((r) => setTimeout(r, 900));
+  ZJ.Api.vehicles = orig;
+  return n;
+});
+ok('切回出行页会重新获取实时车辆', refetch > 0, String(refetch));
 
 /* ---------------- 方案详情：流程 + 到目的地还有几站 ---------------- */
 section('方案详情（换乘流程 + 到目的地还有几站 + 提醒）');
@@ -748,9 +818,9 @@ if (noDirectB) {
   await pickStation('pick-to', noDirectB.to);
   await sleep(1400);
   const resTxt = await txt('#planResult');
-  const kind = resTxt.indexOf('没有找到直通车') > -1 ? '空态' : /换乘方案/.test(resTxt) ? '换乘方案' : '未知';
+  const kind = resTxt.indexOf('没有找到可坐的车') > -1 ? '空态' : /换乘/.test(resTxt) ? '换乘方案' : '未知';
   ok('无直达线路时有换乘方案或空态提示', kind !== '未知', noDirectB.from + '→' + noDirectB.to + ' :: ' + kind + ' :: ' + resTxt.slice(0, 40));
-  ok('无直达时给出附近可达站点兜底', (await cnt('.near-item')) > 0, String(await cnt('.near-item')));
+  ok('无直达时页面不出现附近站点区块', (await cnt('.near-item')) === 0, String(await cnt('.near-item')));
 } else {
   ok('无直达线路时有换乘方案或空态提示', false, '未找到无直达站点对');
 }
